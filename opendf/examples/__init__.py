@@ -1,0 +1,3 @@
+"""
+Package containing running examples.
+"""

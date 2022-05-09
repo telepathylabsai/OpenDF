@@ -1,0 +1,3 @@
+"""
+Package containing smcalflow nodes.
+"""
