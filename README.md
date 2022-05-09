@@ -67,7 +67,7 @@ examples, simply enter them in the examples file.
 own example file, which are: `opendf/examples/examples.py`, `opendf/examples/simplify_examples.py` and
 `opendf/examples/text_examples.py`, respectively.
 
-You can define your own Nodes in the playground file: *applications/sandbox/sandbox.py*
+You can define your own Nodes in the playground file: `opendf/applications/sandbox/sandbox.py`
 
 
 ### Example
