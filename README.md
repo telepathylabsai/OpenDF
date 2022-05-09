@@ -67,6 +67,9 @@ examples, simply enter them in the examples file.
 own example file, which are: `opendf/examples/examples.py`, `opendf/examples/simplify_examples.py` and
 `opendf/examples/text_examples.py`, respectively.
 
+You can define your own Nodes in the playground file: *applications/sandbox/sandbox.py*
+
+
 ### Example
 
 In order to run dataflow, we need a P-expression (or simply, P-exp) that defines the dataflow graph. The advantage of
@@ -121,4 +124,4 @@ The image might be slight different, depending on the type of nodes that are con
 ## Cite
 
 
-If you use this work, please cite the paper "Simplifying Semantic Annotations of SMCalFlow" to appear in LREC 2020
+If you use this work, please cite the (upcoming) paper "Simplifying Semantic Annotations of SMCalFlow" to appear in LREC 2020

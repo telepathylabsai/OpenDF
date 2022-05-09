@@ -9,6 +9,10 @@ dialogs = [
     # 0 - Debug
     [
 
+        'FindEvents(with_attendee(jane))',
+
+        # 'Mult(2,3)',
+
         #'refer(Attendee?(recipient=Recipient?(firstName=John)))',
         # '{evs~}FindEvents(with_attendee(jane))',
         # '$evs',
@@ -33,7 +37,9 @@ dialogs = [
 
         #'refer(Recipient?(firstName=John))',
         #'refer(Event?(attendees=ANY(Attendee?(recipient=Recipient?(firstName=John)))))',
-        'FindEvents(with_attendee(jane))',
+
+
+
         #'refer(Attendee?(recipient=Recipient?(firstName=jane)), multi=True)',
         #'FindAttendees(with_recipient(John))',
         #'FindAttendees(participated_in(FindEvents(with_attendee(John))))',

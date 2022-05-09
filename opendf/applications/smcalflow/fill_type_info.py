@@ -7,7 +7,7 @@ to directly know anything about the node types.
 from opendf.applications.smcalflow.nodes.functions import *
 from opendf.graph.nodes.framework_functions import *
 from opendf.utils.utils import get_subclasses
-
+from opendf.applications.sandbox.sandbox import *
 
 def fill_type_info(node_factory):
     """
