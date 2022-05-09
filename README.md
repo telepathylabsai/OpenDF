@@ -1,5 +1,5 @@
 # OpenDF 
-### Open Pythonic Dataflow Dialoguw Framework
+### Open Pythonic Dataflow Dialogue Framework
 
 The use of the dataflow paradigm for dialogue systems has been introduced by Microsoft's Semantic Machines in the paper
 [Task oriented dialogue as dataflow synthesis](https://arxiv.org/abs/2009.11423), and a large dataset
