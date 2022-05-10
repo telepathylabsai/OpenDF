@@ -125,4 +125,5 @@ The image might be slight different, depending on the type of nodes that are con
 ## Cite
 
 
-If you use this work, please cite the (upcoming) paper "Simplifying Semantic Annotations of SMCalFlow" to appear in LREC 2020
+If you use this work, please cite the (upcoming) paper "Simplifying Semantic Annotations of SMCalFlow" to appear in LREC 2022.
+
