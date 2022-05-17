@@ -37,3 +37,11 @@ class NLU(list):
     def get_first_idx(self, typ=None):
         idx = [i for (i, j) in enumerate(self) if not typ or j.typ == typ]
         return idx[0] if idx else -1
+
+    def has_entry(self, typ=None, name=None, val=None, consumed=None):
+        return [n for (n,i) in enumerate(self) if (typ is None or i.typ==typ) and (name is None or i.name==name) and
+                (val is None or i.val==val) and (consumed is None or i.consumed==consumed)]
+
+    def mark_consumed(self, idx, cons=True):
+        if idx<len(self):
+            self[idx].consumed=cons

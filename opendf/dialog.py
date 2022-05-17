@@ -104,7 +104,7 @@ def dialog(dialog_id):
             draw_all_graphs(d_context, dialog_id)
             input()
 
-    draw_all_graphs(d_context, dialog_id, ex is None, sexp=psexp)
+    draw_all_graphs(d_context, dialog_id, not ex, sexp=psexp)
     if d_context.exceptions:
         msg, nd, _, _ = parse_node_exception(d_context.exceptions[-1])
         nd.explain(msg=msg)

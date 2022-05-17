@@ -170,7 +170,7 @@ def dialog(dialog_id, d_context, draw_graph=True):
             input()
 
     if draw_graph:
-        draw_all_graphs(d_context, dialog_id, ex is None, sexp=indent_sexp(psexp))
+        draw_all_graphs(d_context, dialog_id, not ex, sexp=indent_sexp(psexp))
 
     if d_context.exceptions:
         msg, nd, _, _ = parse_node_exception(d_context.exceptions[-1])
