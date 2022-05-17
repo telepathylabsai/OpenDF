@@ -47,6 +47,8 @@ your environment by running:
 pip install -r requirements.txt
 ```
 
+Be aware that `graphviz` may require the installation of additional packages on the hosting operating system.
+
 ## Running
 
 In order to execute a dataflow expression, simply run:
