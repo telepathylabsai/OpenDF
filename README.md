@@ -38,6 +38,8 @@ Please give it a try and share your new designs!
 See [this document](./README.dataflow.md) for some details about the dataflow dialogue framework,
 and [this document](opendf/applications/smcalflow/README.md) about the SMCalFlow implementation.
 
+In addition, see our LREC-2022 paper [Simplifying Semantic Annotations of SMCalFlow](https://sigsem.uvt.nl/isa18/ISA-18_25_Paper.pdf).
+
 ## Installation
 
 The system mainly depends on the libraries listed in the requirements.txt file. These dependencies can be installed in
