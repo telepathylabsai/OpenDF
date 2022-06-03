@@ -24,6 +24,12 @@ def parse_node_exception(ex):
 # if it's an exception intentionally created by a node - re-raise the exception, to continue with the dialog
 # if it's unintentional - stop and show trace.
 def re_raise_exc(ex, node=None):
+    if isinstance(ex, list):
+        for e in ex:
+            if not isinstance(e, DFException):
+                logger.warning(traceback.format_exc())
+                exit(1)
+        ex = e
     if isinstance(ex, DFException):
         if node is not None:
             ex.node = node
