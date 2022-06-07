@@ -59,7 +59,7 @@ def recursive_simplify(n, d_context, top, e, mode, avoid=None):
         m = None
         while m != n and (n not in avoid and m not in avoid):
             n = m if m else n
-            m, e, mode = n.simplify(top, mode, d_context)
+            m, e, mode = n.simplify(top, mode)
         if m and m not in avoid:
             for i in list(m.inputs.keys()):
                 if not e and i in m.inputs:  # m's inputs may change during simplification - check if still exists
@@ -102,7 +102,7 @@ def recursive_pre_simplify(n, d_context, top, e, mode):
         m = None
         while m != n:
             n = m if m else n
-            m, e, mode = n.pre_simplify(top, mode, d_context)
+            m, e, mode = n.pre_simplify(top, mode)
     return e
 
 

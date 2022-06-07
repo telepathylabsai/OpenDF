@@ -16,6 +16,7 @@ from opendf.applications.simplification.fill_type_info import fill_type_info
 from opendf.graph.node_factory import NodeFactory
 from opendf.defs import *
 from opendf.graph.dialog_context import DialogContext
+from opendf.utils.arg_utils import add_environment_option
 from opendf.utils.io import load_jsonl_file
 from opendf.utils.simplify_exp import indent_sexp, tokenize_pexp, sexp_to_tree, print_tree
 from opendf.exceptions import parse_node_exception, re_raise_exc
@@ -110,7 +111,7 @@ environment_definitions = EnvironmentDefinition.get_instance()
 fill_type_info(node_fact)
 
 
-def dialog(working_dir, input_file=None, dialog_id=0):
+def dialog(working_dir, input_file=None, dialog_id=0, draw_graph=True):
     conv_dir = os.path.join(working_dir, 'conv')
 
     from_jsonl = None
@@ -193,8 +194,8 @@ def dialog(working_dir, input_file=None, dialog_id=0):
                 d_context.add_goal(gl)
 
                 new_count = len(gl.topological_order())
-                simp = gl.print_tree(None, ind=None, with_id=False, with_pos=False,
-                                     trim_leaf=True, trim_sugar=True, mark_val=True)
+                simp, _ = gl.print_tree(None, ind=None, with_id=False, with_pos=False,
+                                        trim_leaf=True, trim_sugar=True, mark_val=True)
                 if from_jsonl:
                     logger.info(simp)
                 else:
@@ -258,27 +259,30 @@ def dialog(working_dir, input_file=None, dialog_id=0):
         eout.close()
         lout.close()
 
+    simp = None
     if not from_jsonl:
-        simp = None
         if len(d_context.goals) > 0:
             simp = indent_sexp(d_context.goals[-1].print_tree(None, ind=None, with_id=False, with_pos=False,
-                                                              trim_leaf=True, trim_sugar=True, mark_val=True))
+                                                              trim_leaf=True, trim_sugar=True, mark_val=True)[0])
             logger.info(simp)
 
         sexp = indent_sexp(org_sexp, org_sexp=True)
-        if draw_one_graph is None:
-            draw_all_graphs(d_context, dialog_id, sexp=sexp, simp=simp)
-        else:
-            if draw_one_graph == -1:
-                draw_graphs([d_context.goals[-1]], None, None, sexp=sexp)
-            elif draw_one_graph == -2:
-                draw_graphs([d_context.goals[-1]], None, None, simp=simp)
+        if draw_graph:
+            if draw_one_graph is None:
+                draw_all_graphs(d_context, dialog_id, sexp=sexp, simp=simp)
             else:
-                draw_graphs([d_context.goals[draw_one_graph]], None, None)
+                if draw_one_graph == -1:
+                    draw_graphs([d_context.goals[-1]], None, None, sexp=sexp)
+                elif draw_one_graph == -2:
+                    draw_graphs([d_context.goals[-1]], None, None, simp=simp)
+                else:
+                    draw_graphs([d_context.goals[draw_one_graph]], None, None)
 
         if d_context.exceptions:
             msg, nd, _, _ = parse_node_exception(d_context.exceptions[-1])
             nd.explain(msg=msg)
+
+    return simp
 
 
 def create_arguments_parser():
@@ -325,11 +329,7 @@ def create_arguments_parser():
         help=f"The level of the logging, possible values are: {list(LOG_LEVELS.keys())}"
     )
 
-    parser.add_argument(
-        "--log", "-l", metavar="log", type=str, required=False, default="DEBUG",
-        choices=LOG_LEVELS.keys(),
-        help=f"The level of the logging, possible values are: {list(LOG_LEVELS.keys())}"
-    )
+    parser = add_environment_option(parser)
 
     return parser
 
@@ -346,8 +346,8 @@ if __name__ == "__main__":
             environment_definitions.update_values(**arguments.environment)
 
         dialog(work_arg, input_arg, dialog_id=id_arg)
-    except:
-        pass
+    except Exception as e:
+        logger.exception(e)
     finally:
         logging.shutdown()
 # stats on lengths:
