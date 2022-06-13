@@ -283,7 +283,7 @@ class PExpLexer:
 
     # the ASSIGN NAME above (inside curly brackets) must be equal the sub-regex below, after $ sign
     def t_ASSIGN_NAME(self, t):
-        r"\$[a-zA-Z_-][a-zA-Z0-9_-]+"
+        r"\$[ \t\n]*[a-zA-Z_-][a-zA-Z0-9_-]+"
         t.value = t.value[1:].strip()
         return t
 
