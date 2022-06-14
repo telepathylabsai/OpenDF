@@ -9,8 +9,9 @@ dialogs = [
     [
         # 'UpdateEvent(event=Event(start=Today()), update=Event(attendees=AND(#Lindsay, FindManager(#Lindsay))))',
         # 'UpdateEvent(event=Event?(), update=Event?())',
+        'FindEvents(with_attendee(jane))',
 
-        'Yield(output=Date(year=2021))',
+        #'Yield(output=Date(year=2021))',
         # 'revise(hasParam=year, new=#2020, newMode=extend)',
         # 'revise(hasParam=output, new=#2020, newMode=extend)',
 

@@ -2837,15 +2837,17 @@ class TimeAfterDateTime(Node):
         self.signature.add_sig('dateTime', Node)
         self.signature.add_sig('time', Node)
 
-    # this may be too aggressive!
-    #  the idea is that this is a logical step which is USUALLY NOT given by the user explicitly
-    #  typically (always??) used to assert the logic that end time > start time.
-    #      for this use case - the logic can be taken out of the expression and implemented in the nodes
+    # replace this by just the time is USUALLY ok (as it's typically used to assert the logic that end time > start time),
+    # but in general it's too aggressive.
+    # A preferable option may be to keep TimeAfterDateTime, and replace it dynamically in trans_simp -
+    #   this could account for cases where just date or just time are given
     def simplify(self, top, mode):
         pnm, parent = self.get_parent()
         dt, tm = self.get_inputs(['dateTime', 'time'])
         if dt and tm:
-            self.replace_self(tm)
+            d, e = self.call_construct('AND(GE(%s), %s)' %(id_sexp(dt), id_sexp(tm)), self.context)
+            #self.replace_self(tm)  # too aggressive (in a few cases)
+            self.replace_self(d)
             return parent, None, mode
         return self, None, mode
 

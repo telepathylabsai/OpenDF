@@ -9,7 +9,13 @@ dialogs = [
     # 0 - Debug
     [
 
-        'FindEvents(with_attendee(jane))',
+
+        'FindEvents(  AND(   at_time( NextWeekList(  )), has_subject( presentation)))\
+         do( Let( x0,:end(refer( Event?() ) ) ),GTf(  size( FindEvents( \
+             AND( starts_at(: date($x0) ),starts_at( GT(: time($x0) ) ) ) ) ),0 ) )'
+
+#'Yield(FindEventWrapperWithDefaults(EventOnDate(date=Tomorrow(), event=Event?(subject=LIKE(train)))))'
+#'FindEvents(with_attendee(jane))',
 
         # 'Mult(2,3)',
 

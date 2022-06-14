@@ -1977,7 +1977,7 @@ class Node:
         if do_eval:
             e = d.call_eval(add_goal=False)
             if e:
-                raise e
+                raise e[0]
 
     def wrap_input_multi(self, inp_nm, new_nm, pref, suf=None, register=True, iview=None, do_eval=False,
                          no_post_check=False, do_trans_simp=False):

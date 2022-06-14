@@ -7,10 +7,13 @@ The user can select the example by its index, from the command line. The example
 
 dialogs = [
     [
+'(Yield :output (CreateCommitEventWrapper :event (CreatePreflightEventWrapper :constraint (Constraint[Event] \
+  :start (?= (TimeAfterDateTime :dateTime (:end (Execute :intension (refer (extensionConstraint (Constraint[Event])))))\
+   :time (NumberPM :number #(Number 4)))) :subject (?= #(String "family time"))))))',
 
-    '(let (x0 (DateAtTimeWithDefaults :date (Tomorrow) :time (NumberPM :number #(Number 2)))) (Yield :output (CreateCommitEventWrapper :event \
-    (CreatePreflightEventWrapper :constraint (Constraint[Event] :end (?= (TimeAfterDateTime :dateTime x0 :time \
-    (NumberPM :number #(Number 5)))) :showAs (?= #(ShowAsStatus "Busy")) :start (?= x0))))))'
+    # '(let (x0 (DateAtTimeWithDefaults :date (Tomorrow) :time (NumberPM :number #(Number 2)))) (Yield :output (CreateCommitEventWrapper :event \
+    # (CreatePreflightEventWrapper :constraint (Constraint[Event] :end (?= (TimeAfterDateTime :dateTime x0 :time \
+    # (NumberPM :number #(Number 5)))) :showAs (?= #(ShowAsStatus "Busy")) :start (?= x0))))))'
 
     #'(Yield :output (FindEventWrapperWithDefaults :constraint (EventOnDate :date (Today) :event (Constraint[Event]))))',
 
