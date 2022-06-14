@@ -159,7 +159,7 @@ class Node:
     def show(self, with_id=False):
         from opendf.utils.simplify_exp import indent_sexp
         return indent_sexp(self.print_tree(None, ind=None, with_id=with_id, with_pos=False,
-                                           trim_leaf=True, trim_sugar=True, mark_val=True))
+                                           trim_leaf=True, trim_sugar=True, mark_val=True)[0])
 
     # get string describing one path from node up
     def show_up(self, with_id=True):
