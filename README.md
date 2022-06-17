@@ -51,6 +51,10 @@ pip install -r requirements.txt
 
 Be aware that `graphviz` may require the installation of additional packages on the hosting operating system.
 
+## Testing
+
+In order to test OpenDF, run `py.test` from the repository's root directory.
+
 ## Running
 
 In order to execute a dataflow expression, simply run:

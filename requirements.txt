@@ -3,3 +3,4 @@ jsons
 sqlalchemy
 tqdm
 ply
+pytest

@@ -4,11 +4,13 @@ Tests the examples for the simplify entry point.
 import unittest
 import re
 
+from opendf.applications.simplification.fill_type_info import fill_type_info
 from opendf.applications.smcalflow.database import populate_stub_database, Database
 from opendf.applications.smcalflow.domain import fill_graph_db
 from opendf.defs import config_log, use_database
 from opendf.dialog_simplify import environment_definitions, dialog
 from opendf.graph.dialog_context import DialogContext
+from opendf.graph.node_factory import NodeFactory
 from opendf.parser.pexp_parser import parse_p_expressions
 
 SPACES_REGEX = re.compile("\\s+")
@@ -20,6 +22,8 @@ class TestSimplify(unittest.TestCase):
     def setUpClass(cls) -> None:
         config_log('INFO')
         cls.d_context = DialogContext()
+        node_factory = NodeFactory.get_instance()
+        fill_type_info(node_factory)
         if use_database:
             populate_stub_database()
         else:
@@ -31,7 +35,7 @@ class TestSimplify(unittest.TestCase):
         if use_database:
             database = Database.get_instance()
             if database:
-                database.erase_database()
+                database.clean_database()
 
     def test_input_with_id_1(self):
         simp = dialog("", dialog_id=1, draw_graph=False)

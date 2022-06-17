@@ -5,17 +5,21 @@ import unittest
 
 from opendf.applications.smcalflow.database import Database, populate_stub_database
 from opendf.applications.smcalflow.domain import fill_graph_db
+from opendf.applications.smcalflow.fill_type_info import fill_type_info
 from opendf.applications.smcalflow.nodes.functions import DeleteCommitEventWrapper, UpdateCommitEventWrapper, FindEvents, \
     WillSnow
 from opendf.applications.smcalflow.nodes.modifiers import with_attendee, starts_at
 from opendf.applications.smcalflow.nodes.objects import Event
 from opendf.defs import use_database, posname, config_log
 from opendf.applications.smcalflow.exceptions.df_exception import BadEventConstraintException
+from opendf.graph.node_factory import NodeFactory
 from opendf.graph.nodes.framework_functions import Yield, revise
 from opendf.graph.nodes.framework_objects import Bool
 from opendf.graph.nodes.framework_operators import GTf
+from opendf.graph.nodes.node import Node
 from opendf.main import dialog, environment_definitions
 from opendf.graph.dialog_context import DialogContext
+from opendf.utils.utils import get_subclasses
 
 
 class TestMain(unittest.TestCase):
@@ -23,6 +27,10 @@ class TestMain(unittest.TestCase):
     @classmethod
     def setUpClass(cls) -> None:
         config_log('INFO')
+        NodeFactory.__instance = None
+        node_factory = NodeFactory.get_instance()
+        nodes = list(filter(lambda x: 'opendf.applications.simplification' not in x.__module__, get_subclasses(Node)))
+        fill_type_info(node_factory, nodes)
         cls.d_context = DialogContext()
         if use_database:
             populate_stub_database()
@@ -35,7 +43,7 @@ class TestMain(unittest.TestCase):
         if use_database:
             database = Database.get_instance()
             if database:
-                database.erase_database()
+                database.clean_database()
 
     def test_input_with_id_1(self):
         graph, ex = dialog(1, self.d_context, draw_graph=False)

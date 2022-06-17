@@ -9,7 +9,7 @@ from opendf.graph.nodes.framework_functions import *
 from opendf.utils.utils import get_subclasses
 from opendf.applications.sandbox.sandbox import *
 
-def fill_type_info(node_factory):
+def fill_type_info(node_factory, all_nodes=None):
     """
     Fills the node types to the node factory.
 
@@ -18,7 +18,8 @@ def fill_type_info(node_factory):
     """
     # node_types: dictionary  name -> node type
     # all_nodes = Node.__subclasses__()     # this adds only one level of subclasses
-    all_nodes = list(get_subclasses(Node))  # add recursively inherited nodes
+    if not all_nodes:
+        all_nodes = list(get_subclasses(Node))  # add recursively inherited nodes
     node_types = {t.__name__: t for t in all_nodes}
     # node_types['Any'] = Node  # 'Any' is a synonym for 'Node'
     node_types['Node'] = Node
