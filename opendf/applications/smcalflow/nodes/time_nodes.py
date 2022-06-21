@@ -422,7 +422,7 @@ class previousDayOfWeek(Node):
     def __init__(self):
         super().__init__(Date)
         self.signature.add_sig(posname(1), Date, True, alias='date')
-        self.signature.add_sig(posname(2), Str, True, alias='dow')
+        self.signature.add_sig(posname(2), [Str, DayOfWeek], True, alias='dow')
 
     def exec(self, all_nodes=None, goals=None):
         d, dow_name = self.get_input_views(['date', 'dow'])
