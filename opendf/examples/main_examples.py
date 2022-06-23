@@ -8,11 +8,35 @@ The user can select the example by its index, from the command line. The example
 dialogs = [
     # 0 - Debug
     [
+'CreateEvent(\
+    AND(\
+       has_subject(\
+          Print flight tickets ) ,\
+       starts_at(\
+          Tomorrow(\
+             ) ) ,\
+       starts_at(\
+          NumberAM(\
+             6 ) ) ) )',
 
+ 'CreateEvent(\
+    AND(\
+       has_subject(\
+          flight ) ,\
+       starts_at(\
+          adjustByPeriod(\
+             refer(\
+                Date?(\
+                   ) ) ,\
+             toDays(\
+                1 ) ) ) ,\
+       starts_at(\
+          NumberPM(\
+             4 ) ) ) ) '
 
-        'FindEvents(  AND(   at_time( NextWeekList(  )), has_subject( presentation>xx)))\
-         do( Let( x0,:end(refer( Event?() ) ) ),GTf(  size( FindEvents( \
-             AND( starts_at(: date($x0) ),starts_at( GT(: time($x0) ) ) ) ) ),0 ) )'
+        # 'FindEvents(  AND(   at_time( NextWeekList(  )), has_subject( presentation>xx)))\
+        #  do( Let( x0,:end(refer( Event?() ) ) ),GTf(  size( FindEvents( \
+        #      AND( starts_at(: date($x0) ),starts_at( GT(: time($x0) ) ) ) ) ),0 ) )'
 
 #'Yield(FindEventWrapperWithDefaults(EventOnDate(date=Tomorrow(), event=Event?(subject=LIKE(train)))))'
 #'FindEvents(with_attendee(jane))',
