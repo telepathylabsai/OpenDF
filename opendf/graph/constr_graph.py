@@ -259,11 +259,11 @@ def ast_top_down_construct(ast, parent, d_context, register=True, top_only=False
                 nm = smp.signature.real_name(nm)
             if is_pos(nm):  # advance auto positional name to next position
                 j = posname_idx(nm)
-                if j < pos:  # this can happen if explicitly gave positional name - e.g. Node(pos3=x, pos2=y)
-                    if alias:
-                        raise SemanticException('alias usage should respect positional order : %s.%s' % (typ, alias))
-                    else:
-                        raise SemanticException('Positional parameters out of order : %s.%s' % (typ, nm))
+                # if j < pos:  # this can happen if explicitly gave positional name - e.g. Node(pos3=x, pos2=y)
+                #     if alias:
+                #         raise SemanticException('alias usage should respect positional order : %s.%s' % (typ, alias))
+                #     else:
+                #         raise SemanticException('Positional parameters out of order : %s.%s' % (typ, nm))
                 pos = j + 1
             ast.inputs[i] = (nm, nd)
             nd.role = nm
