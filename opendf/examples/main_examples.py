@@ -10,7 +10,7 @@ dialogs = [
     [
 
 
-        'FindEvents(  AND(   at_time( NextWeekList(  )), has_subject( presentation)))\
+        'FindEvents(  AND(   at_time( NextWeekList(  )), has_subject( presentation>xx)))\
          do( Let( x0,:end(refer( Event?() ) ) ),GTf(  size( FindEvents( \
              AND( starts_at(: date($x0) ),starts_at( GT(: time($x0) ) ) ) ) ),0 ) )'
 

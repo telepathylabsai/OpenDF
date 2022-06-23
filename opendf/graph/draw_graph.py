@@ -21,15 +21,29 @@ environment_definitions = EnvironmentDefinition.get_instance()
 CHAR_COLON = '&#58;'
 CHAR_LT = '&#60;'
 CHAR_GT = '&#62;'
+CHAR_AND = '&#38;'
+
 
 color_sat = 1.2  # color saturation - 1.0 default. higher values make drawing more lively
 
 
 # ################################ helper functions ################################
 
-# graphviz does not like some characters - replace by char codes
+# graphviz does not like some characters - replace by char codes. there must be some lib for this...
 def fix_chars(s):
-    return re.sub('>', CHAR_GT, re.sub('<', CHAR_LT, re.sub(':', CHAR_COLON, s)))
+    t = s
+    if '&' in s: # in case we call this multiple times on the same string - don't replace '&' again
+        t = ''
+        l = len(s)-4
+        for i,c in enumerate(s):
+            if c=='&':
+                if i<l and s[i+1]=='#' and s[i+3]==';':
+                    t += c
+                else:
+                    t += CHAR_AND
+            else:
+                t+=c
+    return re.sub('>', CHAR_GT, re.sub('<', CHAR_LT, re.sub(':', CHAR_COLON, t)))
 
 
 def split_len(s, n):
@@ -127,6 +141,7 @@ def get_lab_name(s, nd):
     stg = "<font point-size='10'><sup>%s</sup></font>" % ','.join(tg) if tg else ''
     sptg = "<font point-size='12'><sup>%s</sup></font>" % ','.join(ptg) if ptg else ''
     snum = "<font point-size='9'><sub>%s</sub></font>" % n if environment_definitions.show_node_id else ''
+    b = fix_chars(b)
     lb = '<' + ass + stg + b + sptg + snum + '>'
     return lb
 
@@ -146,7 +161,7 @@ def saturate(c, fact=None):
 
 
 def reform_msg(s):
-    return 'summarize' + re.sub('_NL_', '/', re.sub(' ', '_', re.sub(',', '-', re.sub(':', CHAR_COLON, s))))
+    return 'summarize' + re.sub('_NL_', '/', re.sub(' ', '_', re.sub(',', '-', re.sub(':', CHAR_COLON, re.sub('&', CHAR_AND, s)))))
 
 
 def strip_col(s, col):
