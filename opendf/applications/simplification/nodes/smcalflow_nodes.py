@@ -2041,6 +2041,7 @@ class HolidayYear(Node):
 class HourMilitary(Node):
     def __init__(self):
         super().__init__()
+        self.signature.add_sig('hours', Int, True)
         self.signature.add_sig('pos1', [Number, Int], alias='hours')
 
     def simplify(self, top, mode):

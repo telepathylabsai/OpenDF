@@ -1374,6 +1374,7 @@ class HourMilitary(Node):
 
     def __init__(self):
         super().__init__(Time)
+        self.signature.add_sig('pos1', Int, alias='hours')
         self.signature.add_sig('hours', Int, True)
 
     def exec(self, all_nodes=None, goals=None):
