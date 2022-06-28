@@ -421,6 +421,7 @@ class Date(Node):
         self.signature.add_sig('month', Int, match_miss=True)
         self.signature.add_sig('day', Int, match_miss=True)
         self.signature.add_sig('dow', DayOfWeek, match_miss=True)
+        self.signature.add_sig('dayOfWeek', DayOfWeek, match_miss=True, alias='dow')
 
     def generate_sql_where(self, selection, parent_id, **kwargs):
         qualifier = kwargs.get("qualifier", EQ())
