@@ -23,6 +23,8 @@ db_persons = [
     DBPerson('Jerry Skinner', 'Jerry', 'Skinner', 1005, '41761231005', 'jerry.skinner@opendf.com', 1004, []),  # friend of Adam (current user)
     DBPerson('Dan Smith', 'Dan', 'Smith', 1006, '41761231006', 'dan.smith@opendf.com', 1004, []),
     DBPerson('Adam Smith', 'Adam', 'Smith', 1007, '41761231007', 'adam.smith@opendf.com', 1004, [1001, 1003, 1004]),  # <<<< current user!
+    DBPerson('Janice  Kang', 'Janice', 'Kang', 1008, '41761231007', 'Janice.Kang@opendf.com', 1004, [1001, 1003, 1004]),
+    DBPerson('Cher  Rob', 'Cher', 'Rob', 1009, '41761231007', 'Cher.Rob@opendf.com', 1004, [1001, 1003, 1004]),
 ]
 # when looking for a name - if friendship is considered, then "John" is ambiguous, but "Jane" means Jane Smith.
 

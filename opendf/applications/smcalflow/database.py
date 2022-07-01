@@ -296,6 +296,11 @@ class Database(Storage):
                 connection.execute(table.delete())
             transaction.commit()
 
+        self._recipient_graph: Dict[int, Node] = {}
+        self._attendee_graph: Dict[Tuple[int, int], Node] = {}
+        self._event_graph: Dict[int, Node] = {}
+        self._location_graph: Dict[int, Node] = {}
+
     def _create_database(self):
         """
         Create the database for the application. During testing, we will create the database whenever the application is

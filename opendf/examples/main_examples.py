@@ -8,7 +8,58 @@ The user can select the example by its index, from the command line. The example
 dialogs = [
     # 0 - Debug
     [
-        'MD(day=10,month=JAN)',
+        'FindEvents(starts_at(NextDOW( TUESDAY)))',
+        'CreateEvent( AND(starts_at(:end(refer(Event?()))),has_duration(  toHours( 2)) ))',
+        #'CreateEvent( AND(starts_at(:end(FindEvents(constraint=Event?() ) ) ),has_duration(  toHours( 2)) ) )',
+
+        'CreateEvent(AND(has_subject( book a hotel room ), starts_at(LT( :start(FindEvents(starts_at(NextDOW( TUESDAY)))) ) ) ) )'
+
+
+
+        # FindEvents( \
+        #     AND( \
+        #         starts_at( \
+        #             NextDOW( \
+        #                 TUESDAY)), \
+        #         has_subject( \
+        #             flight)))) ) ) ) )',
+
+
+    # 'CreateEvent(\
+    #     AND(\
+    #        with_attendee(\
+    #           Anna ) ,\
+    #        starts_at(\
+    #           Today(\
+    #              ) ) ,\
+    #        starts_at(\
+    #           NumberPM(\
+    #              1 ) ) ) ) ',
+    #  'do(\
+    #     Let(\
+    #        x0 ,\
+    #        :end(\
+    #           refer(\
+    #              Event?(\
+    #                 ) ) ) ) ,\
+    #     GTf(\
+    #        size(\
+    #           FindEvents(\
+    #              AND(\
+    #                 starts_at(\
+    #                    :date(\
+    #                       $ x0 ) ) ,\
+    #                 starts_at(\
+    #                    GT(\
+    #                       :time(\
+    #                          $ x0 ) ) ) ) ) ) ,\
+    #        0 ) ) '
+
+
+#'CreateEvent(AND(has_subject(swimming ) ,starts_at(NextDOW(FRIDAY ) ) ) )',
+#'AcceptSuggestion()'
+
+        #'MD(day=10,month=JAN)',
 
         # 'FindEvents(  AND(   at_time( NextWeekList(  )), has_subject( presentation>xx)))\
         #  do( Let( x0,:end(refer( Event?() ) ) ),GTf(  size( FindEvents( \
