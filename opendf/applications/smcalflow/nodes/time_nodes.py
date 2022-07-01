@@ -697,7 +697,7 @@ class DowOfWeekNew(Node):
 
     def __init__(self):
         super().__init__(Date)
-        self.signature.add_sig(posname(1), Str, True, alias='dow')
+        self.signature.add_sig(posname(1), [Str, DayOfWeek], True, alias='dow')
         self.signature.add_sig(posname(2), DateRange, True, alias='week')
 
     def exec(self, all_nodes=None, goals=None):
