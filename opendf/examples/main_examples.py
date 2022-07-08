@@ -8,11 +8,13 @@ The user can select the example by its index, from the command line. The example
 dialogs = [
     # 0 - Debug
     [
-        'FindEvents(starts_at(NextDOW( TUESDAY)))',
-        'CreateEvent( AND(starts_at(:end(refer(Event?()))),has_duration(  toHours( 2)) ))',
+        'NextDOW( TUESDAY)',
+        'refer(Node?())'
+        #'FindEvents(starts_at(NextDOW( TUESDAY)))',
+        #'CreateEvent( AND(starts_at(:end(refer(Event?()))),has_duration(  toHours( 2)) ))',
         #'CreateEvent( AND(starts_at(:end(FindEvents(constraint=Event?() ) ) ),has_duration(  toHours( 2)) ) )',
 
-        'CreateEvent(AND(has_subject( book a hotel room ), starts_at(LT( :start(FindEvents(starts_at(NextDOW( TUESDAY)))) ) ) ) )'
+        #'CreateEvent(AND(has_subject( book a hotel room ), starts_at(LT( :start(FindEvents(starts_at(NextDOW( TUESDAY)))) ) ) ) )'
 
 
 

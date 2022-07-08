@@ -40,6 +40,8 @@ and [this document](opendf/applications/smcalflow/README.md) about the SMCalFlow
 
 In addition, see our LREC-2022 paper [Simplifying Semantic Annotations of SMCalFlow](https://sigsem.uvt.nl/isa18/ISA-18_25_Paper.pdf).
 
+See also this very good [blog from Semantic Machines](https://www.microsoft.com/en-us/research/group/msai/articles/designing-a-framework-for-conversational-interfaces/).
+
 ## Installation
 
 The system mainly depends on the libraries listed in the requirements.txt file. These dependencies can be installed in

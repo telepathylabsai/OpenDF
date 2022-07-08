@@ -152,6 +152,13 @@ class Node:
             return self
         return self.result.get_result_trans()
 
+    def get_all_res_nodes(self, nodes=None):
+        nodes = nodes if nodes else []
+        if self in nodes:
+            return nodes
+        nodes += [self]
+        return self.result.get_all_res_nodes(nodes)
+
     @property
     def res(self):
         return self.get_result_trans()
@@ -439,6 +446,9 @@ class Node:
         """
         res = self.result
         if n != res:  # change
+            rs = n.get_all_res_nodes()
+            if self in rs: # don't set result if this would create a result loop
+                return
             if res != self:  # remove self from res' list of out_res links
                 res.res_out = [r for r in res.res_out if r != self]
             self.result = n
@@ -448,24 +458,29 @@ class Node:
 
     # ast flag - use AST stype features
     def set_feats(self, nfeats=None, ast_feats=None):
-        # update values only if explicitly given in nfeats
-        if nfeats is not None:
-            if 'evalres' in nfeats:
-                self.eval_res = nfeats['evalres']
-            if 'mut' in nfeats:
-                self.mutable = nfeats['mut']
-            if 'hide' in nfeats:
-                self.hide = nfeats['hide']
-            if 'detach' in nfeats:
-                self.hide = nfeats['detach']
-            if 'block' in nfeats:
-                self.res_block = nfeats['block']
-            if 'oview' in nfeats:
-                self.constr_obj_view = nfeats['oview']
-            if 'goal' in nfeats:
-                self.add_goal = nfeats['goal']
+        # if nfeats is not None:  # deprecated
+        #     if 'evalres' in nfeats:
+        #         self.eval_res = nfeats['evalres']
+        #     if 'mut' in nfeats:
+        #         self.mutable = nfeats['mut']
+        #     if 'hide' in nfeats:
+        #         self.hide = nfeats['hide']
+        #     if 'detach' in nfeats:
+        #         self.hide = nfeats['detach']
+        #     if 'block' in nfeats:
+        #         self.res_block = nfeats['block']
+        #     if 'oview' in nfeats:
+        #         self.constr_obj_view = nfeats['oview']
+        #     if 'goal' in nfeats:
+        #         self.add_goal = nfeats['goal']
         if ast_feats is not None:
-            pass  # todo - set node features from AST style feature string
+            for f in ast_feats.split(','):
+                if f in ['!', 'evres']:
+                    self.eval_res = True
+                elif f in ['|', 'resblk']:
+                    self.res_block = True
+                elif f in ['&', 'mut']:
+                    self.mutable = True
 
     def detach_node(self):
         """
@@ -796,7 +811,11 @@ class Node:
                 return False  # no match, or multiple objects in set
 
         for nm in self.inputs:
-            if nm in self.signature:
+            if self.typename()=='Node':
+                if nm not in obj.inputs or not \
+                        self.input_view(nm).match(obj.input_view(nm), iview=self.view_mode[nm],match_miss=match_miss):
+                    return False
+            elif nm in self.signature:
                 if self.signature[nm].prop:
                     pass  # don't try to match prop
                 elif self.signature[nm].custom:
@@ -1029,7 +1048,7 @@ class Node:
             return self.outputs[-1] if newest else self.outputs[0]
         return None, None
 
-    def follow_nodes(self, follow_res=True, follow_res_trans=False, summarize=None,
+    def follow_nodes(self, parents, follow_res=True, follow_res_trans=False, summarize=None,
                      follow_detached=False, follow_view=False, res_only=False):
         if summarize and self.typename() in summarize:
             return []
@@ -1040,7 +1059,7 @@ class Node:
             if n not in nds:  # avoid adding node twice - could be that two inputs are the same
                 nds.append(n)
         if follow_res and not follow_res_trans and self.result is not None and \
-                self.result != self and self.result not in nds:
+                self.result != self and self.result not in nds and self.result not in parents:
             nds.append(self.result)
         if follow_res_trans and self.res is not None and self.res != self and self.res not in nds:
             nds.append(self.res)
@@ -1053,7 +1072,7 @@ class Node:
     # switch_ext - experimental - if true, follow result instead of inputs for nodes with node.extension=True
     # full_dfs - DFS order, a node may be added more than once (e.g. a node used multiple times as input) - removed
     # TODO: follow_re_trans - not used?
-    def topological_order(self, nodes=None, follow_res=True, exclude_neg=False, follow_res_trans=False,
+    def topological_order(self, nodes=None, parents=None, follow_res=True, exclude_neg=False, follow_res_trans=False,
                           summarize=None, follow_detached=False, follow_view=False,
                           res_only=False):
         """
@@ -1072,10 +1091,13 @@ class Node:
         :type res_only: bool
         """
         nodes = nodes if nodes else []
-        for n in self.follow_nodes(follow_res, summarize=summarize, follow_detached=follow_detached,
-                                   follow_view=follow_view, res_only=res_only):  # TODO: follow_re_trans - not used?
+        parents = parents if parents else []
+        parents.append(self)
+        follow = self.follow_nodes(parents, follow_res, summarize=summarize, follow_detached=follow_detached,
+                                   follow_view=follow_view, res_only=res_only)
+        for n in follow:  # TODO: follow_re_trans - not used?
             if n not in nodes and (not exclude_neg or n.typename() not in ['NEQ', 'NOT', 'NONE']):
-                nodes = n.topological_order(nodes, follow_res, exclude_neg, follow_res_trans,
+                nodes = n.topological_order(nodes, parents, follow_res, exclude_neg, follow_res_trans,
                                             summarize, follow_detached, follow_view, res_only)
         if self not in nodes:
             nodes.append(self)
@@ -1087,7 +1109,7 @@ class Node:
         nodes = []
         goals = to_list(goals)
         for gl in goals:
-            nodes = gl.topological_order(nodes, follow_res, exclude_neg, follow_res_trans, summarize,
+            nodes = gl.topological_order(nodes, None, follow_res, exclude_neg, follow_res_trans, summarize,
                                          follow_detached, follow_view)
         return nodes
 
@@ -1096,7 +1118,7 @@ class Node:
         """
         Gets all sub-nodes of a given typename.
         """
-        nodes = self.topological_order(nodes, follow_res, exclude_neg, follow_res_trans,
+        nodes = self.topological_order(nodes, None, follow_res, exclude_neg, follow_res_trans,
                                        summarize, follow_detached, follow_view)
         typ = to_list(typ)
         ns = [n for n in nodes if n.typename() in typ]
