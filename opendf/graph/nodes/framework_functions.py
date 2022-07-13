@@ -774,7 +774,7 @@ class getattr(Node):
         sig = res.signature
         if not sig.allows_prm(nm):
             raise InvalidResultException(
-                "getattr- %s : signature does not have a field %s" % (self.inputs[posname(2)].typename(), nm), self)
+                "getattr- %s : signature does not have a field %s" % (self.input_view(posname(2)).typename(), nm), self)
         if nm not in res.inputs:
             if sig[nm].prop:
                 val = res.get_property(nm)

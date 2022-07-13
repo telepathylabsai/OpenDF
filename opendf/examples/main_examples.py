@@ -8,8 +8,13 @@ The user can select the example by its index, from the command line. The example
 dialogs = [
     # 0 - Debug
     [
-        'NextDOW( TUESDAY)',
-        'refer(Node?())'
+
+        #':dayOfWeek( :date( :start( FindEvents( has_subject( meeting1 ) ) ) ) ) ',
+        ':dayOfWeek(Today())',
+        #':day(:date(Now()))',
+        #':date(NextDOW( TUESDAY))',
+        #':day(:date(NextDOW( TUESDAY)))',
+        # 'refer(Node?())'
         #'FindEvents(starts_at(NextDOW( TUESDAY)))',
         #'CreateEvent( AND(starts_at(:end(refer(Event?()))),has_duration(  toHours( 2)) ))',
         #'CreateEvent( AND(starts_at(:end(FindEvents(constraint=Event?() ) ) ),has_duration(  toHours( 2)) ) )',

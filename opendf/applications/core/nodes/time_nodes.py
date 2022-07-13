@@ -421,6 +421,7 @@ class Date(Node):
         self.signature.add_sig('month', Int, match_miss=True)
         self.signature.add_sig('day', Int, match_miss=True)
         self.signature.add_sig('dow', DayOfWeek, match_miss=True)
+        self.signature.add_sig('dayOfWeek', DayOfWeek, match_miss=True, prop=True)
 
     def generate_sql_where(self, selection, parent_id, **kwargs):
         qualifier = kwargs.get("qualifier", EQ())
@@ -493,6 +494,11 @@ class Date(Node):
                 return wd
         return None
 
+    def get_property(self, nm):
+        if nm=='dayOfWeek':
+            return self.get_missing_value('dow')
+        super().get_property(nm)
+
     # node is real object - with only leaf nodes under it (ignore weekday input)
     def is_specific(self):
         if self.get_dat('year') and self.get_dat('month') is not None and self.get_dat('day') is not None:
@@ -553,9 +559,10 @@ class Date(Node):
         if attr == 'month':
             if mn is not None:
                 return monthname_full[mn - 1]
-        if attr == 'dow':
+        if attr in ['dow', 'dayOfWeek']:
             if dw is not None:
-                return days_of_week[dw - 1]
+                return dw
+                # return days_of_week[dw - 1]
         return super(type(self), self).getattr_yield_msg(attr, val)
 
 
