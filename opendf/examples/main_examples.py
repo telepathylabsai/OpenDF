@@ -8,9 +8,14 @@ The user can select the example by its index, from the command line. The example
 dialogs = [
     # 0 - Debug
     [
+        'CreateEvent(    AND(       has_duration(          toHours(             2 ) ) ,       has_subject(          dentist appoint ) ,       starts_at(          NextDOW(             TUESDAY ) ) ,       starts_at(          NumberPM(             1 ) ) ) )',
+        #'AcceptSuggestion()',
+        'do(    Let(       x0 ,       :end(          refer(             Event?(                ) ) ) ) ,    FindEvents(       AND(          starts_at(             :date(                $ x0 ) ) ,          starts_at(             GT(                :time(                   $ x0 ) ) ) ) ) )',
+        'do(    Let(       x0 ,       :end(          refer(             Event?(                ) ) ) ) ,    FindEvents(       AND(          has_subject(             dinner plans ) ,          starts_at(             :date(                $ x0 ) ) ,          starts_at(             GT(                :time(                   $ x0 ) ) ) ) ) )',
+
 
         #':dayOfWeek( :date( :start( FindEvents( has_subject( meeting1 ) ) ) ) ) ',
-        ':dayOfWeek(Today())',
+        #':dayOfWeek(Today())',
         #':day(:date(Now()))',
         #':date(NextDOW( TUESDAY))',
         #':day(:date(NextDOW( TUESDAY)))',

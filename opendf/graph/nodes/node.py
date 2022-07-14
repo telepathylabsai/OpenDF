@@ -753,6 +753,8 @@ class Node:
         """
         Match function for NON operator nodes.
         """
+        if obj.id==43:
+            x=1
 
         if oview is None:
             # take oview from self. oview is not None only if we switched from ref intension to extension -
@@ -766,7 +768,7 @@ class Node:
         if oview == VIEW_EXT:
             obj = obj.res
 
-        if check_level:
+        if check_level and obj.not_operator():
             if not compatible_clevel(self.constraint_level, obj.constraint_level):
                 return False
 
@@ -779,6 +781,15 @@ class Node:
                 tp = obj.get_op_type()
             if tp != type(self) and tp not in node_fact.operators:
                 return False
+            if obj.is_operator():
+                os = obj.get_op_objects()
+                for o in os:
+                    if o.typename()!='Node' and o.typename()!=self.typename():
+                        return False
+                    if check_level and not compatible_clevel(self.constraint_level, o.constraint_level):
+                        return False
+
+
 
         if self.typename() == 'Node' and len(self.inputs) == 0:  # Any() matches any node. TODO: constraint_level
             return True
@@ -810,23 +821,26 @@ class Node:
             else:
                 return False  # no match, or multiple objects in set
 
+        check_level = check_level if obj.is_operator() else False
         for nm in self.inputs:
             if self.typename()=='Node':
                 if nm not in obj.inputs or not \
-                        self.input_view(nm).match(obj.input_view(nm), iview=self.view_mode[nm],match_miss=match_miss):
+                        self.input_view(nm).match(obj.input_view(nm), iview=self.view_mode[nm],
+                                                  check_level=check_level, match_miss=match_miss):
                     return False
             elif nm in self.signature:
                 if self.signature[nm].prop:
                     pass  # don't try to match prop
                 elif self.signature[nm].custom:
-                    if not self.custom_match(nm, obj, iview=self.view_mode[nm], match_miss=match_miss):
+                    if not self.custom_match(nm, obj, iview=self.view_mode[nm],
+                                             check_level=check_level, match_miss=match_miss):
                         return False
                 elif self.input_view(nm).typename() == 'Clear':  # do we really want it here...
                     pass  # cleared constraint about this field - match succeeds no matter what the input is
                 elif nm in obj.inputs:
                     if not self.signature[nm].excl_match:
                         if not self.input_view(nm).match(obj.input_view(nm), iview=self.view_mode[nm],
-                                                         match_miss=match_miss):
+                                                         check_level=check_level, match_miss=match_miss):
                             return False
                 elif self.signature[nm].match_miss and match_miss:
                     pass
