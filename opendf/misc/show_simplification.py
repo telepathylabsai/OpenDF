@@ -24,7 +24,7 @@ logger = logging.getLogger(__name__)
 # init type info
 node_fact = NodeFactory.get_instance()
 # TODO: check dialog context
-d_context = DialogContext.get_instance()
+d_context = DialogContext()
 d_context.suppress_exceptions = True  # avoid exit in
 
 fill_type_info(node_fact)
