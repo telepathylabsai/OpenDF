@@ -641,11 +641,13 @@ class DateTime(Node):
     # e.g. self=10AM, ref=9AM, op=GT, means:
     #  originally we had self:GT(9AM)  ref:LT(10AM), and the intersection is calculated by checking 9AM.GT(10AM),
     #   i.e. calling ref.func_GT(self, op=None)
+    # ref may be a different type - and may refer to a time interval, rather than a time point.
+    #    in that case, we check if the END of ref is before self
     def func_LT(self, ref):
-        return ref.to_partialDateTime('end') < self.to_partialDateTime('start')
+        return ref.to_partialDateTime('end') < self.to_partialDateTime()
 
     def func_GT(self, ref):
-        return ref.to_partialDateTime() > self.to_partialDateTime()
+        return ref.to_partialDateTime('start') > self.to_partialDateTime()
 
     # modes:
     # - date: enough that date is specific
