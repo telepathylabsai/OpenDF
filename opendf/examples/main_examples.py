@@ -9,10 +9,16 @@ dialogs = [
     # 0 - Debug
     [
 
+    'AND(TimeSlot?(start=DateTime?(date=Date(year=2022,month=1,day=3))),\
+    AND(TimeSlot?(start=GE(DateTime?(time=Time(hour=11,minute=0)))),\
+    TimeSlot?(start=LE(DateTime?(time=Time(hour=13,minute=0))))),\
+    AND(TimeSlot?(start=DateTime(date=Date(year=2022,month=1,day=3),time=Time(hour=11,minute=0))),\
+        TimeSlot?(end=DateTime(date=Date(year=2022,month=1,day=3),time=Time(hour=11,minute=30)))))',
 
-'CreateEvent( AND( with_attendee(Dan ) , starts_at(NextDOW(  MONDAY ) ) , starts_at(NumberPM( 4 ) ) ) )' ,
- 'do( Let( x0 , AcceptSuggestion( ) ) ,do(Yield( $ x0 ) ,\
-     DeleteEvent(AND(starts_at(LT(:start( :item( $ x0 ) ) ) ) ,with_attendee(Jerry ) ) ) ) ) ',
+
+# 'CreateEvent( AND( with_attendee(Dan ) , starts_at(NextDOW(  MONDAY ) ) , starts_at(NumberPM( 4 ) ) ) )' ,
+#  'do( Let( x0 , AcceptSuggestion( ) ) ,do(Yield( $ x0 ) ,\
+#      DeleteEvent(AND(starts_at(LT(:start( :item( $ x0 ) ) ) ) ,with_attendee(Jerry ) ) ) ) ) ',
 
         # 'CreateEvent(    AND(       has_duration(          toHours(             2 ) ) ,       has_subject(          dentist appoint ) ,       starts_at(          NextDOW(             TUESDAY ) ) ,       starts_at(          NumberPM(             1 ) ) ) )',
         # #'AcceptSuggestion()',

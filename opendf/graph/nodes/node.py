@@ -2496,7 +2496,7 @@ class Node:
             if l > 1 or ((root.is_qualifier() or root.typename() in allow_single) and l > 0):
                 return '%s(%s)' % (root.typename(), ','.join(children))
             elif l == 1:
-                return children[0] + '()' if '(' not in children[0] else children[0]
+                return children[0] + '()' if '(' not in children[0] and '$#' not in children[0] else children[0]
             else:
                 return ''
         tp = root.typename()
