@@ -570,11 +570,11 @@ class NumberWeekOfMonth(Node):
     def __init__(self):
         super().__init__(DateRange)
         self.signature.add_sig('month', [Str, Int], True)
-        self.signature.add_sig('num', Int, True)
+        self.signature.add_sig('number', Int, True)
 
     def exec(self, all_nodes=None, goals=None):
         month = self.get_dat("month")
-        num = self.get_dat("num")
+        num = self.get_dat("number")
         if isinstance(month, str):
             month = name_to_month(month)
         year = get_system_date().year
