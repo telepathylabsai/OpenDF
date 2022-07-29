@@ -244,3 +244,4 @@ venv
 #### Parser Cached Files
 /opendf/parser/parser.out
 /opendf/parser/parsetab.py
+/opendf/looper.py

@@ -920,6 +920,10 @@ class Event(Node):
         s = 'AND(' + ','.join(['Event?(%s)' % p for p in prms]) + ')'
         return prms if return_prm else s
 
+    def to_partialDateTime(self, mode=None):
+        nm = 'end' if mode=='end' else 'start'
+        dt = self.get_ext_view('slot.'+nm)
+        return dt.to_partialDateTime()
 
 # convert multiple time formats to tree of Event constraints
 #   either one Event?(), or AND(Event?(), Event?()) for ranges

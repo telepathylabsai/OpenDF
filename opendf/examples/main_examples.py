@@ -8,11 +8,17 @@ The user can select the example by its index, from the command line. The example
 dialogs = [
     # 0 - Debug
     [
-        'CreateEvent(    AND(       has_duration(          toHours(             2 ) ) ,       has_subject(          dentist appoint ) ,       starts_at(          NextDOW(             TUESDAY ) ) ,       starts_at(          NumberPM(             1 ) ) ) )',
-        #'AcceptSuggestion()',
-        'do(    Let(       x0 ,       :end(          refer(             Event?(                ) ) ) ) ,    FindEvents(       AND(          starts_at(             :date(                $ x0 ) ) ,          starts_at(             GT(                :time(                   $ x0 ) ) ) ) ) )',
-        'do(    Let(       x0 ,       :end(          refer(             Event?(                ) ) ) ) ,    FindEvents(       AND(          has_subject(             dinner plans ) ,          starts_at(             :date(                $ x0 ) ) ,          starts_at(             GT(                :time(                   $ x0 ) ) ) ) ) )',
 
+
+'CreateEvent( AND( with_attendee(Dan ) , starts_at(NextDOW(  MONDAY ) ) , starts_at(NumberPM( 4 ) ) ) )' ,
+ 'do( Let( x0 , AcceptSuggestion( ) ) ,do(Yield( $ x0 ) ,\
+     DeleteEvent(AND(starts_at(LT(:start( :item( $ x0 ) ) ) ) ,with_attendee(Jerry ) ) ) ) ) ',
+
+        # 'CreateEvent(    AND(       has_duration(          toHours(             2 ) ) ,       has_subject(          dentist appoint ) ,       starts_at(          NextDOW(             TUESDAY ) ) ,       starts_at(          NumberPM(             1 ) ) ) )',
+        # #'AcceptSuggestion()',
+        # 'do(    Let(       x0 ,       :end(          refer(             Event?(                ) ) ) ) ,    FindEvents(       AND(          starts_at(             :date(                $ x0 ) ) ,          starts_at(             GT(                :time(                   $ x0 ) ) ) ) ) )',
+        # 'do(    Let(       x0 ,       :end(          refer(             Event?(                ) ) ) ) ,    FindEvents(       AND(          has_subject(             dinner plans ) ,          starts_at(             :date(                $ x0 ) ) ,          starts_at(             GT(                :time(                   $ x0 ) ) ) ) ) )',
+        #
 
         #':dayOfWeek( :date( :start( FindEvents( has_subject( meeting1 ) ) ) ) ) ',
         #':dayOfWeek(Today())',

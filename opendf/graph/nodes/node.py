@@ -753,8 +753,6 @@ class Node:
         """
         Match function for NON operator nodes.
         """
-        if obj.id==43:
-            x=1
 
         if oview is None:
             # take oview from self. oview is not None only if we switched from ref intension to extension -
@@ -788,8 +786,6 @@ class Node:
                         return False
                     if check_level and not compatible_clevel(self.constraint_level, o.constraint_level):
                         return False
-
-
 
         if self.typename() == 'Node' and len(self.inputs) == 0:  # Any() matches any node. TODO: constraint_level
             return True

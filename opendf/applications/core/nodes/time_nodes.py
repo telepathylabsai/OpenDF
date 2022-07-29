@@ -259,7 +259,7 @@ class Time(Node):
 
         return selection
 
-    def to_partialDateTime(self):
+    def to_partialDateTime(self, mode=None):
         # assuming no operators around hour/minute. otherwise - use get_op_object()...
         return PartialDateTime(hour=self.get_dat('hour'), minute=self.get_dat('minute'))
 
@@ -458,7 +458,7 @@ class Date(Node):
             return 'tomorrow'
         return ''
 
-    def to_partialDateTime(self):
+    def to_partialDateTime(self, mode=None):
         # assuming no operators around individual field; otherwise, use get_op_object per field.
         return PartialDateTime(self.get_dat('year'), self.get_dat('month'), self.get_dat('day'), self.get_dat('dow'))
 
@@ -598,7 +598,7 @@ class DateTime(Node):
     def valid_constraint(self):
         self.valid_input()
 
-    def to_partialDateTime(self):
+    def to_partialDateTime(self, mode=None):
         # Create a PartialTime object from this DateTime.
         # this assumes subfields are "simple":
         #    if there are any qualifiers (LT, GT,...) they are ignored
@@ -642,7 +642,7 @@ class DateTime(Node):
     #  originally we had self:GT(9AM)  ref:LT(10AM), and the intersection is calculated by checking 9AM.GT(10AM),
     #   i.e. calling ref.func_GT(self, op=None)
     def func_LT(self, ref):
-        return ref.to_partialDateTime() < self.to_partialDateTime()
+        return ref.to_partialDateTime('end') < self.to_partialDateTime('start')
 
     def func_GT(self, ref):
         return ref.to_partialDateTime() > self.to_partialDateTime()

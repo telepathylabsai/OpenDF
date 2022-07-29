@@ -773,9 +773,12 @@ class getattr(Node):
         res = self.input_view(posname(2))
         sig = res.signature
         if not sig.allows_prm(nm):
-            raise InvalidResultException(
+            if nm=='item':  # hack - smcalflow uses 'item' in places we don't
+                val = res
+            else:
+                raise InvalidResultException(
                 "getattr- %s : signature does not have a field %s" % (self.input_view(posname(2)).typename(), nm), self)
-        if nm not in res.inputs:
+        elif nm not in res.inputs:
             if sig[nm].prop:
                 val = res.get_property(nm)
             else:
@@ -1033,6 +1036,9 @@ class AcceptSuggestion(Node):
     def __init__(self):
         super().__init__()
         self.signature.add_sig(posname(1), Int, alias='index')
+
+    def get_missing_value(self, nm, as_node=True):
+        return self.res
 
     def exec(self, all_nodes=None, goals=None):
         prev_sugg = [] if self.context.prev_sugg_act is None else [i for i in self.context.prev_sugg_act if
