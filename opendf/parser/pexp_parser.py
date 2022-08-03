@@ -22,6 +22,8 @@ IDENTIFIER_REGEX = re.compile(IDENTIFIER_EXPRESSION)
 QUOTED_STRING_EXPRESSION = r"(\"(\\.|[^\"])*\"|\'(\\.|[^\'])*\')"
 QUOTED_STRING_REGEX = re.compile(QUOTED_STRING_EXPRESSION)
 
+SPACES_REGEX = re.compile("\\s+")
+
 TAG_CHAR = "^"
 
 
@@ -432,7 +434,9 @@ class PExpParser:
 
     def p_value_terminal_identifier(self, p):
         """value : IDENTIFIER"""
-        p[0] = ASTNode(p[1].strip(), is_terminal=True)
+        string_value = p[1].strip()
+        string_value = SPACES_REGEX.sub(" ", string_value)
+        p[0] = ASTNode(string_value, is_terminal=True)
 
     def p_value_terminal_quote(self, p):
         """value : QUOTED_STRING"""
