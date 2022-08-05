@@ -434,10 +434,10 @@ class Date(Node):
                 selection, database_handler.database_date_to_year(parent_id), **kwargs)
         if "month" in self.inputs:
             selection = self.input_view('month').generate_sql_where(
-                selection, database_handler.database_date_to_year(parent_id), **kwargs)
+                selection, database_handler.database_date_to_month(parent_id), **kwargs)
         if "day" in self.inputs:
             selection = self.input_view('day').generate_sql_where(
-                selection, database_handler.database_date_to_year(parent_id), **kwargs)
+                selection, database_handler.database_date_to_day(parent_id), **kwargs)
         if "dow" in self.inputs:
             selection = self.input_view("dow").generate_sql_where(selection, parent_id)
 
