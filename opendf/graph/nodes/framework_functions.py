@@ -805,7 +805,7 @@ class getattr(Node):
         nd = self.input_view(posname(2))
         # add a 'singleton' wrapper around input nodes which may return multiple results
         if nd and nd.signature.multi_res == True:  # or maybe even just != False
-            self.wrap_input(posname(2), 'singleton(')
+            self.wrap_input(posname(2), 'singleton(', do_eval=False)
         return self, None
 
 
