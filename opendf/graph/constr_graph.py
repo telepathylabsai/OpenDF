@@ -201,7 +201,7 @@ def ast_top_down_construct(ast, parent, d_context, register=True, top_only=False
     ast = ast_handle_simplify(ast)
 
     logger.debug(ast.name)
-    typ, _ = get_type_and_clevel(ast.name)
+    typ, clv = get_type_and_clevel(ast.name)
     ptyp = parent.typename() if parent else None
 
     if ast.is_assign:
@@ -252,18 +252,19 @@ def ast_top_down_construct(ast, parent, d_context, register=True, top_only=False
             if nm is None:
                 nm = posname(pos)
             # check input name is allowed
-            if not smp.signature.allows_prm(nm) and not (smp.is_operator() and is_pos(nm)) and not smp.is_base_type():
+            if not smp.signature.allows_prm(nm) and not (smp.is_operator() and is_pos(nm)) and \
+                    not smp.is_base_type() and not (typ=='Node' and clv>0):
                 raise SemanticException('Unexpected input name %s to node %s' % (nm, typ))
             if smp.signature.is_alias(nm):
                 alias = nm
                 nm = smp.signature.real_name(nm)
             if is_pos(nm):  # advance auto positional name to next position
                 j = posname_idx(nm)
-                if j < pos:  # this can happen if explicitly gave positional name - e.g. Node(pos3=x, pos2=y)
-                    if alias:
-                        raise SemanticException('alias usage should respect positional order : %s.%s' % (typ, alias))
-                    else:
-                        raise SemanticException('Positional parameters out of order : %s.%s' % (typ, nm))
+                # if j < pos:  # this can happen if explicitly gave positional name - e.g. Node(pos3=x, pos2=y)
+                #     if alias:
+                #         raise SemanticException('alias usage should respect positional order : %s.%s' % (typ, alias))
+                #     else:
+                #         raise SemanticException('Positional parameters out of order : %s.%s' % (typ, nm))
                 pos = j + 1
             ast.inputs[i] = (nm, nd)
             nd.role = nm

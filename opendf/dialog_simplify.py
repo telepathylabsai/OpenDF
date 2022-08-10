@@ -205,6 +205,7 @@ def dialog(working_dir, input_file=None, dialog_id=0, draw_graph=True):
                 #     #print('ZZZ  %s\n' % simp_toks)
                 # else:
                 simp_toks = tokenize_pexp(simp, sep_equal=False)
+                simp_toks = re.sub(' [ ]+', ' ', simp_toks)  # remove multiple spaces
                 if not from_jsonl:
                     logger.info(simp_toks)
 

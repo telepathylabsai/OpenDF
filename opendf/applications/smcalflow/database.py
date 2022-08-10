@@ -296,6 +296,11 @@ class Database(Storage):
                 connection.execute(table.delete())
             transaction.commit()
 
+        self._recipient_graph: Dict[int, Node] = {}
+        self._attendee_graph: Dict[Tuple[int, int], Node] = {}
+        self._event_graph: Dict[int, Node] = {}
+        self._location_graph: Dict[int, Node] = {}
+
     def _create_database(self):
         """
         Create the database for the application. During testing, we will create the database whenever the application is
@@ -1048,8 +1053,9 @@ def populate_stub_database():
         connection.execute(insert(database.PLACE_FEATURE_TABLE), feature_data)
         connection.execute(insert(database.PLACE_HAS_FEATURE_TABLE), location_has_feature_data)
 
-        connection.execute(insert(database.EVENT_TABLE), event_data)
-        connection.execute(insert(database.EVENT_HAS_ATTENDEE_TABLE), event_has_attendee_data)
+        if events:
+            connection.execute(insert(database.EVENT_TABLE), event_data)
+            connection.execute(insert(database.EVENT_HAS_ATTENDEE_TABLE), event_has_attendee_data)
 
         earliest = get_system_datetime().replace(hour=0, minute=0, second=0, microsecond=0)
         latest = earliest + timedelta(days=event_suggestion_period)

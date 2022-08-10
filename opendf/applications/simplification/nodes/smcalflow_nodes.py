@@ -2268,8 +2268,8 @@ class Lunch(Node):
 class MD(Node):
     def __init__(self):
         super().__init__()
-        self.signature.add_sig('day', [Number, Int])
         self.signature.add_sig('month', Node)
+        self.signature.add_sig('day', [Number, Int])
 
     def simplify(self, top, mode):
         float_input_to_int(self, 'day')
@@ -2281,8 +2281,8 @@ class MD(Node):
 class MDY(Node):
     def __init__(self):
         super().__init__()
-        self.signature.add_sig('day', [Number, Int])
         self.signature.add_sig('month', Node)
+        self.signature.add_sig('day', [Number, Int])
         self.signature.add_sig('year', Node)
 
     def simplify(self, top, mode):

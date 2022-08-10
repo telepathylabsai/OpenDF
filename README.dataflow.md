@@ -146,7 +146,7 @@ functionality of the base *Node* type will be extended.
 In the current implementation, each node has a dictionary (*Node.tags*), which can be used as
 general purpose storage, which can be accessed and used by its execution logic. Tags can be set either 
 from within the execution logic of nodes, or from the P-exp using the syntax *^tagname=tagvalue*,
-e.g. *FindManager(John, ^xx=5)* corresponds to the same graph as *FindManager(John, ^xx=5)*, except that the
+e.g. *FindManager(John, ^xx=5)* corresponds to the same graph as *FindManager(John)*, except that the
 *FindManager* node will have *xx=5* in its tags dictionary.
 
 Tags are a convenient (hacky) way to add functionalities without adding new fields to the base Node. Once

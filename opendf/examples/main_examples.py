@@ -9,10 +9,85 @@ dialogs = [
     # 0 - Debug
     [
 
+    'AND(TimeSlot?(start=DateTime?(date=Date(year=2022,month=1,day=3))),\
+    AND(TimeSlot?(start=GE(DateTime?(time=Time(hour=11,minute=0)))),\
+    TimeSlot?(start=LE(DateTime?(time=Time(hour=13,minute=0))))),\
+    AND(TimeSlot?(start=DateTime(date=Date(year=2022,month=1,day=3),time=Time(hour=11,minute=0))),\
+        TimeSlot?(end=DateTime(date=Date(year=2022,month=1,day=3),time=Time(hour=11,minute=30)))))',
 
-        'FindEvents(  AND(   at_time( NextWeekList(  )), has_subject( presentation)))\
-         do( Let( x0,:end(refer( Event?() ) ) ),GTf(  size( FindEvents( \
-             AND( starts_at(: date($x0) ),starts_at( GT(: time($x0) ) ) ) ) ),0 ) )'
+
+# 'CreateEvent( AND( with_attendee(Dan ) , starts_at(NextDOW(  MONDAY ) ) , starts_at(NumberPM( 4 ) ) ) )' ,
+#  'do( Let( x0 , AcceptSuggestion( ) ) ,do(Yield( $ x0 ) ,\
+#      DeleteEvent(AND(starts_at(LT(:start( :item( $ x0 ) ) ) ) ,with_attendee(Jerry ) ) ) ) ) ',
+
+        # 'CreateEvent(    AND(       has_duration(          toHours(             2 ) ) ,       has_subject(          dentist appoint ) ,       starts_at(          NextDOW(             TUESDAY ) ) ,       starts_at(          NumberPM(             1 ) ) ) )',
+        # #'AcceptSuggestion()',
+        # 'do(    Let(       x0 ,       :end(          refer(             Event?(                ) ) ) ) ,    FindEvents(       AND(          starts_at(             :date(                $ x0 ) ) ,          starts_at(             GT(                :time(                   $ x0 ) ) ) ) ) )',
+        # 'do(    Let(       x0 ,       :end(          refer(             Event?(                ) ) ) ) ,    FindEvents(       AND(          has_subject(             dinner plans ) ,          starts_at(             :date(                $ x0 ) ) ,          starts_at(             GT(                :time(                   $ x0 ) ) ) ) ) )',
+        #
+
+        #':dayOfWeek( :date( :start( FindEvents( has_subject( meeting1 ) ) ) ) ) ',
+        #':dayOfWeek(Today())',
+        #':day(:date(Now()))',
+        #':date(NextDOW( TUESDAY))',
+        #':day(:date(NextDOW( TUESDAY)))',
+        # 'refer(Node?())'
+        #'FindEvents(starts_at(NextDOW( TUESDAY)))',
+        #'CreateEvent( AND(starts_at(:end(refer(Event?()))),has_duration(  toHours( 2)) ))',
+        #'CreateEvent( AND(starts_at(:end(FindEvents(constraint=Event?() ) ) ),has_duration(  toHours( 2)) ) )',
+
+        #'CreateEvent(AND(has_subject( book a hotel room ), starts_at(LT( :start(FindEvents(starts_at(NextDOW( TUESDAY)))) ) ) ) )'
+
+
+
+        # FindEvents( \
+        #     AND( \
+        #         starts_at( \
+        #             NextDOW( \
+        #                 TUESDAY)), \
+        #         has_subject( \
+        #             flight)))) ) ) ) )',
+
+
+    # 'CreateEvent(\
+    #     AND(\
+    #        with_attendee(\
+    #           Anna ) ,\
+    #        starts_at(\
+    #           Today(\
+    #              ) ) ,\
+    #        starts_at(\
+    #           NumberPM(\
+    #              1 ) ) ) ) ',
+    #  'do(\
+    #     Let(\
+    #        x0 ,\
+    #        :end(\
+    #           refer(\
+    #              Event?(\
+    #                 ) ) ) ) ,\
+    #     GTf(\
+    #        size(\
+    #           FindEvents(\
+    #              AND(\
+    #                 starts_at(\
+    #                    :date(\
+    #                       $ x0 ) ) ,\
+    #                 starts_at(\
+    #                    GT(\
+    #                       :time(\
+    #                          $ x0 ) ) ) ) ) ) ,\
+    #        0 ) ) '
+
+
+#'CreateEvent(AND(has_subject(swimming ) ,starts_at(NextDOW(FRIDAY ) ) ) )',
+#'AcceptSuggestion()'
+
+        #'MD(day=10,month=JAN)',
+
+        # 'FindEvents(  AND(   at_time( NextWeekList(  )), has_subject( presentation>xx)))\
+        #  do( Let( x0,:end(refer( Event?() ) ) ),GTf(  size( FindEvents( \
+        #      AND( starts_at(: date($x0) ),starts_at( GT(: time($x0) ) ) ) ) ),0 ) )'
 
 #'Yield(FindEventWrapperWithDefaults(EventOnDate(date=Tomorrow(), event=Event?(subject=LIKE(train)))))'
 #'FindEvents(with_attendee(jane))',

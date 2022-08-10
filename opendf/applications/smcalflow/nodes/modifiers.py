@@ -281,7 +281,7 @@ class starts_at(Modifier):
         elif it == 'TEE':
             if ot in TIME_NODE_NAMES:
                 inp.wrap_input(posname(1), pref1)
-        elif ot in TIME_NODE_NAMES:
+        elif ot in TIME_NODE_NAMES: #  or inp.get_op_type().__name__ in TIME_NODE_NAMES:
             self.wrap_input(posname(1), pref1, do_eval=evl)
         # allow using an event (actual object) as a time spec (treating it as a time range). needs more work.
         elif evl and inp.constraint_level == 0 and ot == 'Event':

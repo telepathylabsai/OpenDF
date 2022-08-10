@@ -114,17 +114,19 @@ class adjustByPeriod(Node):
         self.signature.add_sig(posname(2), Period, True, alias='period')
 
     def exec(self, all_nodes=None, goals=None):
+        pr = self.input_view("period").res.to_Ptimedelta()
+
         res = self.input_view("date").res
         if res.typename() == "DateTime":
             dt = res.to_Pdatetime()
-        else:
+            new_date = dt + pr
+            g, _ = Node.call_construct_eval(Pdatetime_to_sexp(new_date), self.context)
+        else:  # date
             dt = res.to_Pdate()
             dt = datetime(dt.year, dt.month, dt.day)
-
-        pr = self.input_view("period").res.to_Ptimedelta()
-
-        new_date = dt + pr
-        g, _ = Node.call_construct_eval(Pdatetime_to_sexp(new_date), self.context)
+            new_date = dt + pr
+            new_date = Pdate_to_date_sexp(new_date.date())
+            g, _ = Node.call_construct_eval(new_date, self.context)
 
         self.set_result(g)
 

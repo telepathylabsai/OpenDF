@@ -259,7 +259,7 @@ class Time(Node):
 
         return selection
 
-    def to_partialDateTime(self):
+    def to_partialDateTime(self, mode=None):
         # assuming no operators around hour/minute. otherwise - use get_op_object()...
         return PartialDateTime(hour=self.get_dat('hour'), minute=self.get_dat('minute'))
 
@@ -421,6 +421,7 @@ class Date(Node):
         self.signature.add_sig('month', Int, match_miss=True)
         self.signature.add_sig('day', Int, match_miss=True)
         self.signature.add_sig('dow', DayOfWeek, match_miss=True)
+        self.signature.add_sig('dayOfWeek', DayOfWeek, match_miss=True, prop=True)
 
     def generate_sql_where(self, selection, parent_id, **kwargs):
         qualifier = kwargs.get("qualifier", EQ())
@@ -433,10 +434,10 @@ class Date(Node):
                 selection, database_handler.database_date_to_year(parent_id), **kwargs)
         if "month" in self.inputs:
             selection = self.input_view('month').generate_sql_where(
-                selection, database_handler.database_date_to_year(parent_id), **kwargs)
+                selection, database_handler.database_date_to_month(parent_id), **kwargs)
         if "day" in self.inputs:
             selection = self.input_view('day').generate_sql_where(
-                selection, database_handler.database_date_to_year(parent_id), **kwargs)
+                selection, database_handler.database_date_to_day(parent_id), **kwargs)
         if "dow" in self.inputs:
             selection = self.input_view("dow").generate_sql_where(selection, parent_id)
 
@@ -457,7 +458,7 @@ class Date(Node):
             return 'tomorrow'
         return ''
 
-    def to_partialDateTime(self):
+    def to_partialDateTime(self, mode=None):
         # assuming no operators around individual field; otherwise, use get_op_object per field.
         return PartialDateTime(self.get_dat('year'), self.get_dat('month'), self.get_dat('day'), self.get_dat('dow'))
 
@@ -492,6 +493,11 @@ class Date(Node):
                     return g
                 return wd
         return None
+
+    def get_property(self, nm):
+        if nm=='dayOfWeek':
+            return self.get_missing_value('dow')
+        super().get_property(nm)
 
     # node is real object - with only leaf nodes under it (ignore weekday input)
     def is_specific(self):
@@ -553,9 +559,10 @@ class Date(Node):
         if attr == 'month':
             if mn is not None:
                 return monthname_full[mn - 1]
-        if attr == 'dow':
+        if attr in ['dow', 'dayOfWeek']:
             if dw is not None:
-                return days_of_week[dw - 1]
+                return dw
+                # return days_of_week[dw - 1]
         return super(type(self), self).getattr_yield_msg(attr, val)
 
 
@@ -591,7 +598,7 @@ class DateTime(Node):
     def valid_constraint(self):
         self.valid_input()
 
-    def to_partialDateTime(self):
+    def to_partialDateTime(self, mode=None):
         # Create a PartialTime object from this DateTime.
         # this assumes subfields are "simple":
         #    if there are any qualifiers (LT, GT,...) they are ignored
@@ -634,11 +641,13 @@ class DateTime(Node):
     # e.g. self=10AM, ref=9AM, op=GT, means:
     #  originally we had self:GT(9AM)  ref:LT(10AM), and the intersection is calculated by checking 9AM.GT(10AM),
     #   i.e. calling ref.func_GT(self, op=None)
+    # ref may be a different type - and may refer to a time interval, rather than a time point.
+    #    in that case, we check if the END of ref is before self
     def func_LT(self, ref):
-        return ref.to_partialDateTime() < self.to_partialDateTime()
+        return ref.to_partialDateTime('end') < self.to_partialDateTime()
 
     def func_GT(self, ref):
-        return ref.to_partialDateTime() > self.to_partialDateTime()
+        return ref.to_partialDateTime('start') > self.to_partialDateTime()
 
     # modes:
     # - date: enough that date is specific
