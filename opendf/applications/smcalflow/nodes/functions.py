@@ -268,8 +268,7 @@ class WeatherQueryApi(Node):
         super().__init__(WeatherTable)
         self.signature.add_sig('place', [GeoCoords, Place, LocationKeyphrase, Str])
         self.signature.add_sig('time', [DateTime, Date])
-        self.signature.add_sig('event', Event)
-        self.signature.add_sig('pos1', Node, alias='event')
+        self.signature.add_sig('pos1', Event, alias='event')
 
     def trans_simple(self, top):
         if "event" not in self.inputs:
