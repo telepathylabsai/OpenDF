@@ -6,12 +6,14 @@ import unittest
 from opendf.applications.smcalflow.database import Database, populate_stub_database
 from opendf.applications.smcalflow.domain import fill_graph_db
 from opendf.applications.smcalflow.fill_type_info import fill_type_info
-from opendf.applications.smcalflow.nodes.functions import DeleteCommitEventWrapper, UpdateCommitEventWrapper, FindEvents, \
+from opendf.applications.smcalflow.nodes.functions import DeleteCommitEventWrapper, UpdateCommitEventWrapper, \
+    FindEvents, \
     WillSnow
 from opendf.applications.smcalflow.nodes.modifiers import with_attendee, starts_at
 from opendf.applications.smcalflow.nodes.objects import Event
 from opendf.defs import use_database, posname, config_log
-from opendf.applications.smcalflow.exceptions.df_exception import BadEventConstraintException
+from opendf.applications.smcalflow.exceptions.df_exception import BadEventConstraintException, \
+    NoEventSuggestionException
 from opendf.graph.node_factory import NodeFactory
 from opendf.graph.nodes.framework_functions import Yield, revise
 from opendf.graph.nodes.framework_objects import Bool
@@ -33,7 +35,7 @@ class TestMain(unittest.TestCase):
         fill_type_info(node_factory, nodes)
         cls.d_context = DialogContext()
         if use_database:
-            populate_stub_database()
+            populate_stub_database("opendf/applications/smcalflow/data_stub.json")
         else:
             fill_graph_db(cls.d_context)
         environment_definitions.event_fallback_force_curr_user = False
@@ -43,19 +45,15 @@ class TestMain(unittest.TestCase):
         if use_database:
             database = Database.get_instance()
             if database:
-                database.clean_database()
+                database.clear_database()
 
     def test_input_with_id_1(self):
         graph, ex = dialog(1, self.d_context, draw_graph=False)
 
         # checking value
         value = graph.typename()
-        expected = Yield.__name__
-        self.assertEqual(graph.typename(), expected, f"Expected {expected}, found {value}!")
-
-        value = graph.input_view(posname(1)).typename()
         expected = DeleteCommitEventWrapper.__name__
-        self.assertEqual(value, expected, f"Expected {expected}, found {value}!")
+        self.assertEqual(graph.typename(), expected, f"Expected {expected}, found {value}!")
 
         # checking exception
         self.assertEqual(len(ex), 1, f"Only one exception expected, got {len(ex)}")
@@ -93,33 +91,23 @@ class TestMain(unittest.TestCase):
 
         # checking value
         value = graph.typename()
-        expected = Yield.__name__
-        self.assertEqual(graph.typename(), expected, f"Expected {expected}, found {value}!")
-
-        value = graph.input_view(posname(1)).typename()
         expected = UpdateCommitEventWrapper.__name__
-        self.assertEqual(value, expected, f"Expected {expected}, found {value}!")
+        self.assertEqual(graph.typename(), expected, f"Expected {expected}, found {value}!")
 
         # checking exception
         self.assertEqual(len(ex), 1, f"Only one exception expected, got {len(ex)}")
 
-        exception_len = len(ex[0].suggestions)
-        expected_len = 2
-        self.assertGreaterEqual(
-            exception_len, expected_len,
-            f"Expected an confirmation exception with more than {expected_len} arguments, found {exception_len}")
+        exception_type = NoEventSuggestionException
+        self.assertTrue(isinstance(ex[0], exception_type),
+                        f"Expected an exception of type {exception_type.__name__}, found {ex[0].__class__.__name__}")
 
     def test_input_with_id_4(self):
         graph, ex = dialog(4, self.d_context, draw_graph=False)
 
         # checking value
         value = graph.typename()
-        expected = Yield.__name__
-        self.assertEqual(graph.typename(), expected, f"Expected {expected}, found {value}!")
-
-        value = graph.input_view(posname(1)).typename()
         expected = UpdateCommitEventWrapper.__name__
-        self.assertEqual(value, expected, f"Expected {expected}, found {value}!")
+        self.assertEqual(graph.typename(), expected, f"Expected {expected}, found {value}!")
 
         # checking exception
         exception_len = len(ex[0].suggestions)
@@ -153,13 +141,8 @@ class TestMain(unittest.TestCase):
         # checking value
         graph = root
         value = graph.typename()
-        expected = Yield.__name__
-        self.assertEqual(graph.typename(), expected, f"Expected {expected}, found {value}!")
-
-        graph = graph.inputs[posname(1)]
-        value = graph.typename()
         expected = FindEvents.__name__
-        self.assertEqual(value, expected, f"Expected {expected}, found {value}!")
+        self.assertEqual(graph.typename(), expected, f"Expected {expected}, found {value}!")
 
         # checking exception
         graph = root.res
@@ -173,13 +156,8 @@ class TestMain(unittest.TestCase):
         # checking value
         graph = root
         value = graph.typename()
-        expected = Yield.__name__
-        self.assertEqual(graph.typename(), expected, f"Expected {expected}, found {value}!")
-
-        graph = graph.inputs[posname(1)]
-        value = graph.typename()
         expected = WillSnow.__name__
-        self.assertEqual(value, expected, f"Expected {expected}, found {value}!")
+        self.assertEqual(graph.typename(), expected, f"Expected {expected}, found {value}!")
 
         # checking exception
         graph = root.res
@@ -193,17 +171,12 @@ class TestMain(unittest.TestCase):
         # checking value
         graph = root
         value = graph.typename()
-        expected = Yield.__name__
-        self.assertEqual(graph.typename(), expected, f"Expected {expected}, found {value}!")
-
-        graph = graph.inputs[posname(1)]
-        value = graph.typename()
         expected = FindEvents.__name__
-        self.assertEqual(value, expected, f"Expected {expected}, found {value}!")
+        self.assertEqual(graph.typename(), expected, f"Expected {expected}, found {value}!")
 
         # checking number of events
         value = sum(map(lambda x: isinstance(x, Event), graph.res.inputs.values()))
-        expected = 4
+        expected = 3
         self.assertEqual(value, expected, f"Expected {expected} event, found {value}!")
 
     def test_input_with_id_9(self):
@@ -212,19 +185,13 @@ class TestMain(unittest.TestCase):
         # checking value
         graph = root
         value = graph.typename()
-        expected = Yield.__name__
-        self.assertEqual(graph.typename(), expected,
-                         f"Expected {expected}, found {value}!")
-
-        graph = graph.inputs[posname(1)]
-        value = graph.typename()
         expected = FindEvents.__name__
-        self.assertEqual(value, expected,
+        self.assertEqual(graph.typename(), expected,
                          f"Expected {expected}, found {value}!")
 
         # checking number of events
         value = sum(map(lambda x: isinstance(x, Event), graph.res.inputs.values()))
-        expected = 6
+        expected = 5
         self.assertEqual(value, expected, f"Expected {expected} event, found {value}!")
 
     def test_input_with_id_10(self):
@@ -233,14 +200,8 @@ class TestMain(unittest.TestCase):
         # checking value
         graph = root
         value = graph.typename()
-        expected = Yield.__name__
-        self.assertEqual(graph.typename(), expected,
-                         f"Expected {expected}, found {value}!")
-
-        graph = graph.inputs[posname(1)]
-        value = graph.typename()
         expected = GTf.__name__
-        self.assertEqual(value, expected,
+        self.assertEqual(graph.typename(), expected,
                          f"Expected {expected}, found {value}!")
 
         graph = root.res
@@ -258,14 +219,8 @@ class TestMain(unittest.TestCase):
         # checking value
         graph = root
         value = graph.typename()
-        expected = Yield.__name__
-        self.assertEqual(graph.typename(), expected,
-                         f"Expected {expected}, found {value}!")
-
-        graph = graph.inputs[posname(1)]
-        value = graph.typename()
         expected = GTf.__name__
-        self.assertEqual(value, expected,
+        self.assertEqual(graph.typename(), expected,
                          f"Expected {expected}, found {value}!")
 
         expected = 3

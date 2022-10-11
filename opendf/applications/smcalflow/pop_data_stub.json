@@ -1,0 +1,33 @@
+{
+  "db_events": [
+    [1, "zzzz", "WED/9/0", "WED/9/30", 1, [1001], ["Accepted"], ["Busy"]]
+  ],
+  "db_persons": [
+    ["xxx xxx", "xxx", "xxx", 1001, "8881001", "xxx.xxx@opendf.com", 1001, []],
+    ["Damon Straeter", "Damon", "Straeter", 10001, "91761210001", "damon.straeter@opendf.com", 10003, [10002, 10003]],
+    ["Megan Bowen", "Megan", "Bowen", 10002, "91761210002", "megan.bowen@opendf.com", 10003, [10001, 10003]],
+    ["Dan Schoffel", "Dan", "Schoffel", 10003, "91761210003", "dan.schoffel@opendf.com", 10003, [10001, 10002]]
+  ],
+  "CURRENT_RECIPIENT_ID": 10001,
+  "weather_places": [
+    [0, "online", "", null, null, null, true, true],
+    [1, "room1", "Zurich, Zurich, Switzerland", 47.374444, 8.541111, 20, true, false],
+    [2, "home", "Bahnhofstrasse 1, 8001 Zurich, Zurich, Switzerland", 47.367436, 8.539832, 30, false, false]
+  ],
+  "place_has_features": {
+    "2": ["HappyHour"]
+  },
+  "CURRENT_RECIPIENT_LOCATION_ID": 1,
+  "HOLIDAYS": [
+    [1, 1, "NewYearsDay"],
+    [5, 1, "TestDay"],
+    [25, 12, "Christmas"],
+    [31, 12, "NewYearsEve"]
+  ],
+  "WEATHER_TABLE": {
+    "47.374444_8.541111": ["zurich", [[-2, "snow"], [0, "cloud"], [5, "rain"], [7, "storm"], [10, "wind"], [10, "clear"], [0, "sleet"]]],
+    "46.947633_7.404997": ["bern", [[-5, "clear"], [-2, "cloud"], [0, "snow"], [4, "rain"], [4, "rain"], [5, "cloud"], [0, "clear"]]],
+    "35.701067_139.75528": ["tokyo", [[-8, "snow"], [-6, "cloud"], [-6, "snow"], [0, "cloud"], [-2, "clear"], [0, "rain"], [2, "rain"]]],
+    "41.411023_2.16319": ["barcelona", [[13, "rain"], [17, "rain"], [18, "clear"], [20, "clear"], [18, "cloud"], [17, "rain"], [21, "clear"]]]
+  }
+}

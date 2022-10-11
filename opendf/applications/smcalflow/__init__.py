@@ -1,3 +1,3 @@
 """
-Package for the smcalflow applications.
+Package for the SMCalFlow applications.
 """

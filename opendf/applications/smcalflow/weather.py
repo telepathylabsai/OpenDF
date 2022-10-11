@@ -4,9 +4,9 @@ Weather related functions.
 import math
 from datetime import date, timedelta
 from opendf.applications.core.nodes.time_nodes import Pdate_to_Pdatetime, DateTime, Pdate_to_values, dow_to_name, monthname
-from opendf.applications.smcalflow.stub_data import WEATHER_TABLE
 from opendf.graph.nodes.node import Node
 from opendf.defs import get_system_date
+
 
 def time_filter_weather_dict(dct, filt: DateTime):
     fdc = {}
@@ -105,14 +105,18 @@ def compute_distance(x, y):
     :rtype: float
     """
 
+    if x is None or y is None:
+        return 9999999.9
     total = 0.0
     for i, j in zip(x, y):
+        if i is None or j is None:
+            return 9999999.9
         total += (i - j) ** 2
 
     return math.sqrt(total)
 
 
-def find_closest_weather_information(latitude, longitude):
+def find_closest_weather_information(latitude, longitude, WEATHER_TABLE):
     """
     Finds the weather information of the closest location based on the `latitude` and `longitude`.
 
@@ -137,7 +141,7 @@ def find_closest_weather_information(latitude, longitude):
 
 def create_weather_prediction(weather):
     """
-    Creates a whether prediction based on `weather`. The output format is:
+    Creates a FAKE hourly weather prediction based on `weather`. The output format is:
     <place name>+<date>|<hour>:<temperature>:<condition>[;<hour>:<temperature>:<condition>]*[/<place
     name>+<date>|<hour>:<temperature>:<condition>[;<hour>:<temperature>:<condition>]*]*
 
@@ -163,7 +167,7 @@ def create_weather_prediction(weather):
         return ''
 
 
-def get_weather_prediction(latitude, longitude):
+def get_weather_prediction(latitude, longitude, WEATHER_TABLE):
     """
     Gets the other information for the coordinates.
 
@@ -174,5 +178,5 @@ def get_weather_prediction(latitude, longitude):
     :return: the weather prediction
     :rtype: str
     """
-    weather = find_closest_weather_information(latitude, longitude)
+    weather = find_closest_weather_information(latitude, longitude, WEATHER_TABLE)
     return create_weather_prediction(weather)

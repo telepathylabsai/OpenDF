@@ -4,3 +4,6 @@ sqlalchemy
 tqdm
 ply
 pytest
+wheel
+twine
+pyyaml

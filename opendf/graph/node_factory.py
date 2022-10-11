@@ -171,7 +171,7 @@ class NodeFactory:
         open(bname, 'w').write(json.dumps(bases))
 
     # dump all nodes' signatures to a file # TODO: make another fct and keep old as it was
-    def dump_node_types_and_params(self, pname, bname):
+    def dump_node_types_and_params(self, pname, bname, no_equal=False):
         params, bases = {}, {}
         save_f_nodes = True
         logger.info("Saving node types into ../analyze/conv/%s_signatures.txt", bname)
@@ -192,11 +192,16 @@ class NodeFactory:
         import json
         open(pname, 'w').write(json.dumps(params))
         open(bname, 'w').write(json.dumps(bases))
+        suffix = {'\n', '(\n'}
+        if not no_equal:
+            suffix.add('=\n')
         if save_f_nodes:
             for sign in set_signatures:
-                suffix = {'\n', '(\n', '=\n'}
+
                 for suff in suffix:
                     f_nodes.write(sign + suff)
                 f_nodes.write(':' + sign + '\n')
                 f_nodes.write(':' + sign + '(\n')
+            if no_equal:
+                f_nodes.write("=\n")
             f_nodes.close()

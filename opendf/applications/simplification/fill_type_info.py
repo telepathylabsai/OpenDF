@@ -2,8 +2,7 @@
 Collect Node type related information here and store in a format which can be passed to a function which does not
 have to directly know anything about the node types.
 """
-
-from opendf.applications.simplification.nodes.smcalflow_nodes import *
+from opendf.graph.nodes.node import Node
 from opendf.utils.utils import get_subclasses
 
 

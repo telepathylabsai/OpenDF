@@ -828,6 +828,12 @@ class PartialInterval:
             return True  # ? at least not contradictory. maybe return None?
         styp = neg_typ[self.typ] if neg_self else self.typ
         otyp = neg_typ[other.typ] if neg_other else other.typ
+        if styp=='neq' and self.start and self.start.is_complete() and self.end and \
+                self.end == self.start:
+            if otyp=='eq' and (not other==self):
+                return True
+            if otyp=='neq':  # and other.start and other.start.is_complete() and other.end and other.end == other.start:
+                return True
         intersects = self.intersect(other)
         if styp == 'eq':
             if otyp not in ['neq', 'nitv']:

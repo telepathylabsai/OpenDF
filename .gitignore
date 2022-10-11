@@ -245,3 +245,5 @@ venv
 /opendf/parser/parser.out
 /opendf/parser/parsetab.py
 /opendf/looper.py
+/tmp/
+/resources/multiwoz/

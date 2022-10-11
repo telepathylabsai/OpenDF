@@ -754,6 +754,7 @@ class DatabaseEventFactory(EventFactory):
         self.number_of_completed_suggestions = number_of_completed_suggestions
         self.number_of_clashed_suggestions = number_of_clashed_suggestions
         self.maximum_number_of_solutions = maximum_number_of_solutions
+        self.database = Database.get_instance()
 
     def create_event_suggestion(self, root, parent, avoid_id, prm=None) -> Node:
         # root must not be None!
@@ -778,7 +779,7 @@ class DatabaseEventFactory(EventFactory):
             parameters.append('attendees=' + 'SET(' + comma_id_sexp(pos) + ')')
         else:
             parameters.append('attendees=' + id_sexp(pos[0]))
-        atts = [i.inputs['recipient'].get_dat('id') for i in pos]
+        atts = [i.inputs['recipient'].get_dat('id') for i in pos if i and 'recipient' in i.inputs]
 
         all_suggestions, completed_suggestions, clashed_suggestions = \
             self.get_suggestions_from_database(root, root.context, subj, atts, avoid_id)
@@ -786,7 +787,7 @@ class DatabaseEventFactory(EventFactory):
         if not all_suggestions:
             raise NoEventSuggestionException(parent)
 
-        if len(all_suggestions) == 1:
+        if len(all_suggestions) == 1 or len(all_suggestions)>0 and prm and 'first_only' in prm:
             suggestion = all_suggestions[0]
             suggested_start = suggestion.suggested_starts_at
             suggested_end = suggestion.suggested_ends_at
@@ -862,8 +863,7 @@ class DatabaseEventFactory(EventFactory):
         completed_suggestions = []
         clashed_suggestions = []
         all_suggestions = []
-        database = Database.get_instance()
-        with database.engine.connect() as connection:
+        with self.database.engine.connect() as connection:
             minimum_interval = timedelta(minutes=30 - 1)
             last_complete_start = None
             last_clashed_start = None
@@ -941,7 +941,7 @@ class DatabaseEventFactory(EventFactory):
         # if location is busy, reject the suggestion
         if location_node is None:
             location_node, _ = Node.call_construct("LocationKeyphrase(online)", d_context)
-        has_location = Database.get_instance().has_location(location_node)
+        has_location = self.database.has_location(location_node)
 
         # Database/SQL part
 

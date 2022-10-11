@@ -4,9 +4,12 @@ This file should not depend on any other file from this project, except for exce
 """
 import datetime
 import logging
+import os
 import sys
+from enum import Enum
 
-from opendf.exceptions.python_exception import SingletonClassException, NoEnvironmentAttributeException
+from opendf.exceptions.python_exception import SingletonClassException, \
+    NoEnvironmentAttributeException
 
 base_types = ['Int', 'Float', 'Str', 'Bool', 'CasedStr', 'String', 'Number']
 
@@ -14,13 +17,24 @@ logger = logging.getLogger(__name__)
 
 LOG_LEVELS = {
     'NOTSET': 0,
-    'DEBUG': 10,
+    # 'DEBUG': 10,
     'INFO': 20,
     'WARNING': 30,
     'ERROR': 40,
     'CRITICAL': 50,
-
 }
+
+
+###
+
+class LessThanFilter(logging.Filter):
+    def __init__(self, maximum_level, name=""):
+        super(LessThanFilter, self).__init__(name)
+        self.maximum_level = maximum_level
+
+    def filter(self, record):
+        # if the return value is different from zero, the message should be logged
+        return 1 if record.levelno < self.maximum_level else 0
 
 
 def config_log(level='INFO'):
@@ -28,11 +42,26 @@ def config_log(level='INFO'):
     Configures the logging.
     """
     level = LOG_LEVELS.get(level.upper(), LOG_LEVELS['INFO'])
+    logger_out = logging.StreamHandler(sys.stdout)
+    logger_out.setLevel(level)
+    logger_out.addFilter(LessThanFilter(logging.WARNING))
+
+    logger_err = logging.StreamHandler(sys.stderr)
+    logger_err.setLevel(logging.WARNING)
+    logger.addHandler(logger_err)
     logging.basicConfig(
         format="%(message)s",
         level=level,
-        handlers=[logging.StreamHandler(sys.stdout)]
+        handlers=[logger_out, logger_err]
     )
+
+
+class Message:
+    def __init__(self, text, node=None, objects=None, turn=None):
+        self.text = text
+        self.node = node
+        self.objects = objects if objects else []
+        self.turn = turn
 
 
 class EnvironmentDefinition:
@@ -51,7 +80,9 @@ class EnvironmentDefinition:
         :rtype: "EnvironmentDefinition"
         """
         if EnvironmentDefinition.__instance is None:
-            EnvironmentDefinition.__instance = EnvironmentDefinition()
+            definition = EnvironmentDefinition()
+            definition._update_values_from_env()
+            EnvironmentDefinition.__instance = definition
         return EnvironmentDefinition.__instance
 
     def __init__(self):
@@ -62,6 +93,7 @@ class EnvironmentDefinition:
             raise SingletonClassException()
 
         # these options mostly control the drawing, but may have some side effects
+        # note - some drawing options can have an effect on graphviz's rendering (placement of nodes in the drawing)
 
         self.show_goal_id = True  # draw goal id marker
         self.show_node_id = True  # draw the id# for each node
@@ -71,30 +103,32 @@ class EnvironmentDefinition:
         self.show_config = True
         self.show_hints = False  # draw hints (used in dialog_txt)
         # noinspection SpellCheckingInspection
-        self.show_sugg = False  # draw suggestions
+        self.show_sugg = True  # draw suggestions
         self.draw_vert = True  # draw vertically
         self.show_tags = True  # draw tags
         self.show_assign = False  # draw assign labels
-        self.show_last_ok = False  # draw marker showing if last turn had exception or not
+        self.show_last_ok = True  # draw marker showing if last turn had exception or not
         self.hide_extra_base = False  # don't draw leaf types
         self.show_view = False  # draw view type
         self.show_nodes = True  # turns off drawing of nodes (drawing only text)
         self.show_prm_tags = False  # draw parameter tags (depracated)
         self.show_detach = False  # draw detached nodes (depracated)
-        self.show_dup = False  # draw pointers from duplicated nodes to they original nodes
+        self.show_dup = True  # draw pointers from duplicated nodes to they original nodes
         self.show_sexp = True  # drae S-exp
         self.show_txt = True  # draw text
         self.show_simp = True  # draw simplified text
         self.show_explain = True  # draw explanations
         self.show_only_n = 0  # draw only last N goals (if 0, draw all)
         self.show_alias = True  # draw alias names
+        self.show_last_exc_per_node = False
         self.hide_internal_db = False  # don't draw nodes internal to the DB - draw only top node from DB(reduce
         # clutter)
         self.sep_graphs = True  # draw each turn in a separate box
         self.show_SQL = False  # draw the SQL message
+        self.show_other_goals = True  # draw context.other_goals
 
-        self.clear_exc_each_turn = True  # clear exceptions each turn
-        self.clear_msg_each_turn = True  # clear messages each turn
+        self.clear_exc_each_turn = False  # clear exceptions each turn
+        self.clear_msg_each_turn = False  # clear messages each turn
         # noinspection SpellCheckingInspection
         self.show_dbg_constr = True  # adds extra nodes to the graph (and draw them) which are helpful for debugging
         self.show_dbg_event = True  # adds extra nodes to the graph (and draw them) which are helpful for debugging
@@ -119,9 +153,27 @@ class EnvironmentDefinition:
         self.simp_add_init_goal = True  # add initial (original) graph as goal (in simplify) - turn on for debug/display
 
         self.radius_constraint = 10000
+        self.raise_db_optimization_exception = True
         # the radius constraint to consider where searching for places near another place, in meters
 
         self.event_fallback_force_curr_user = False
+
+        self.exit_on_python_exception = False  # <<
+
+        self.populating_db = False  # True only when running populate_db
+        self.agent_oracle = False  # True when running dialogs with the agent's responses (e.g. multiwoz dataset)
+        self.oracle_only = False  # when using agent_oracle - if False then mix node logic with oracle info
+
+    def _update_values_from_env(self):
+        arguments = {}
+        for prop in dir(self):
+            if not prop.startswith('_') and not callable(getattr(self, prop)):
+                env_value = os.getenv(prop.upper())
+                if env_value is not None:
+                    arguments[prop] = env_value
+
+        if arguments:
+            self.update_values(**arguments)
 
     def update_values(self, **kwargs):
         """
@@ -135,7 +187,8 @@ class EnvironmentDefinition:
         """
         for key, value in kwargs.items():
             if not hasattr(self, key):
-                raise NoEnvironmentAttributeException(self.__class__.__name__, key)
+                raise NoEnvironmentAttributeException(self.__class__.__name__,
+                                                      key)
             original_value = getattr(self, key)
             if isinstance(original_value, list) and isinstance(value, str):
                 value = value.split(",")
@@ -154,24 +207,31 @@ class EnvironmentDefinition:
 # TODO: use the these variables only after CLI arguments are parsed
 use_database = True
 # database_connection = "sqlite+pysqlite:///:memory:"  # use this for in memory database
-database_connection = "sqlite+pysqlite:///tmp/test.db"
+# database_connection = "sqlite+pysqlite:///tmp/test.db"  # use this for debugging
+database_connection = os.getenv('DF_DB_PATH', "sqlite+pysqlite:///:memory:")
 # database_connection = "postgresql://postgres:root@localhost:5432/test"
 # in order to use postgres, update this variable to conform with your database installation
 
 database_log = False
 database_future = True
 
+simplify_MultiWoz = True  # normally false. set to true ONLY when running simplification of Multiwoz
+
 # The values below defines the searching space for the database based event factories, changing this values may
 # dramatically change the event suggestion runtime, when using these factories
 # DatabaseEventFactory
-event_suggestion_period = 31  # the number of days, after SYSTEM_DATE, to be considered as suggestions
-minimum_slot_interval = 5  # the number of minutes between possible start/end timeslots, e.g. if set to 5,
+event_suggestion_period = 200  # originally - 31   # the number of days, after SYSTEM_DATE, to be considered as suggestions
+minimum_slot_interval = 15  # the number of minutes between possible start/end timeslots, e.g. if set to 5,
 # only events where the `m % 5 == 0` will be possible, where `m` is the minute of the start (or end) of the event
 # when searching DB for events, limit to events with current user
 
 # DatabaseStartDurationEventFactory
 minimum_duration = 5  # the minimal possible duration of an event, in minutes
 maximum_duration_days = 1  # the maximum duration of an event, in days
+
+unique_goal_types = ['BookingAgent']  # node types which dialogue context should keep only the most recent
+# TODO: check this
+# unique_goal_types = ['BookingAgent', 'revise', 'AcceptSuggestion', 'RejectSuggestion']  # node types which dialogue context should keep only the most recent
 
 # Option to set a specific date for the system
 # SYSTEM_DATE = datetime.datetime.today().date()
@@ -208,7 +268,8 @@ OUTLINE_SIMP = OUTLINE_COLOR + '#0000ff'  # for marking simplified expansion
 NODE_COLOR = TAG_NO_NO_NO + '_node'
 NODE_COLOR_DB = NODE_COLOR + '#ccddcc'
 
-WRAP_COLOR_TAG = [NODE_COLOR + '#ddddaa', OUTLINE_COLOR + '#888866']  # mark automatically added input nodes
+WRAP_COLOR_TAG = [NODE_COLOR + '#ddddaa',
+                  OUTLINE_COLOR + '#888866']  # mark automatically added input nodes
 RES_COLOR_TAG = [OUTLINE_GRAY1, NODE_COLOR + '#ccccee']
 
 only_one_exception = False  # context keeps only the last exception
@@ -218,12 +279,22 @@ DB_NODE_TAG = TAG_NO_SHOW + TAG_NO_COPY + 'db_node'
 
 #  NODE = ['Any', 'Node']  # synonymous type names for Node
 
-OVERRIDE_EXC = ['Exists', 'size']  # nodes which ignore exceptions thrown under them
+OVERRIDE_EXC = ['Exists',
+                'size']  # nodes which ignore exceptions thrown under them
 
 BLOCK_TRAVERSE = ['BLOCK']
 
-VIEW_INT = 1  # intension
-VIEW_EXT = 2  # extension
+
+class VIEW(Enum):
+    INT = 1
+    EXT = 2
+
+
+# VIEW_INT = VIEW.INT
+# VIEW_EXT = VIEW.EXT
+
+# VIEW_INT = 1  # intension
+# VIEW_EXT = 2  # extension
 
 MULT_NO = 0
 MULT_ALREADY = 1
@@ -258,7 +329,8 @@ def get_system_datetime():
     """
     date = get_system_date()
     time = datetime.datetime.now()
-    return datetime.datetime(date.year, date.month, date.day, time.hour, time.minute, time.second, time.microsecond)
+    return datetime.datetime(date.year, date.month, date.day, time.hour,
+                             time.minute, time.second, time.microsecond)
 
 
 def is_pos(s):
@@ -273,7 +345,9 @@ def posname_idx(s):
     return int(s[len(POS):]) if is_pos(s) else 0
 
 
-def show_prm_nm(i, with_pos):
+def show_prm_nm(i, with_pos=False, sig=None):
     if is_pos(i) and not with_pos:
         return ''
+    if sig:
+        return sig.pretty_name(i) + '='
     return i + '='

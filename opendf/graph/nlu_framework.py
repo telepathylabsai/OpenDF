@@ -3,10 +3,13 @@ Stores NLU classes and functions.
 """
 
 # file to store NLU classes and functions, still experimental (UNUSED!)
+from enum import Enum
 
-NLU_INTENT = 1
-NLU_SLOT = 2
-NLU_TREE = 3
+
+class NLU_TYPE(Enum):
+    NLU_INTENT = 1
+    NLU_SLOT = 2
+    NLU_TREE = 3
 
 
 class nlu_out:
@@ -17,7 +20,7 @@ class nlu_out:
         self.consumed = consumed
 
     def __repr__(self):
-        t = 'INTENT' if self.typ == NLU_INTENT else 'SLOT' if self.typ == NLU_SLOT else 'TREE'
+        t = 'INTENT' if self.typ == NLU_TYPE.NLU_INTENT else 'SLOT' if self.typ == NLU_TYPE.NLU_SLOT else 'TREE'
         return '%s: %s / %s / %s' % (t, self.name, self.val, self.consumed)
 
 

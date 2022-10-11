@@ -1,3 +1,3 @@
 """
-A simplified version of smcalflow.
+A simplified version of SMCalFlow.
 """

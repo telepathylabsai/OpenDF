@@ -1,9 +1,10 @@
 import re
-from typing import Tuple, Any
+from typing import Tuple, Any, Optional, List
 
 from opendf.exceptions.debug_exception import DebugDFException
 from opendf.exceptions.df_exception import ElementNotFoundException
-from opendf.graph.nlu_framework import NLU_SLOT
+from opendf.graph.dialog_context import DialogContext
+from opendf.graph.nlu_framework import NLU_TYPE
 from opendf.graph.node_factory import NodeFactory
 from opendf.utils.utils import compatible_clevel, parse_hint, to_list, id_sexp, \
     is_assign_name, strings_similar, flatten_list
@@ -13,6 +14,7 @@ from opendf.defs import *
 from opendf.parser.pexp_parser import escape_string
 from opendf.exceptions.python_exception import SemanticException
 from opendf.exceptions.df_exception import NoPropertyException, MissingValueException, NotImplementedYetDFException
+from collections import defaultdict
 
 node_fact = NodeFactory.get_instance()
 environment_definitions = EnvironmentDefinition.get_instance()
@@ -34,7 +36,7 @@ class Node:
         # using OrderedDict - so that evaluation goes in left-to-right order (relative to construction order)
         # inputs (also outputs, view_mode) use the "real" name - not aliases
 
-        self.view_mode = {}  # used for explicitly which value to use for each input - the input itself or its result
+        self.view_mode = {}  # per input - which value to use - the input itself or its result
         self.out_type = Node if out_type is None else out_type
         # for type-node will be that type, for function could be any type
 
@@ -45,44 +47,42 @@ class Node:
         # A node marked as evaluated will not be evaluated again.
 
         self.result = self  # pointer to result node (self if constructor)
-        self.outputs = []  # forward pointers - list of (name, node). As graph grows, node may be reused as input
-        # so possible that this node will be used multiple time with the same name
+        self.outputs = []  # which nodes use this node as input, and the name of the input - list of (name, node).
+        # As graph grows, node may be used several times, possibly with the same input name
 
         self.tags = {}  # additional memory. Tags can be associated with special behavior / common traits...
         # non-tag info (i.e. fields of Node) need specific syntax to be able to set them.
         # tags don't - that's why new tags can be added without code change in the base system
         # tags with '*' are required, tags with TAG_NO_COPY are not copied, tags with TAG_NO_SHOW are not displayed,
         # tags with TAG_NO_MATCH are not matched
-        # TODO: should we have a separate type for tag? e.g. with flags for copy, show, match...?
 
         self.type_tags = []  # names of tags which are created per type (in __init__) (i.e. not added per node instance)
-        # TODO: clean up tags - maybe add node.misc for misc private info (no match/copy/display...)
 
         self.res_out = []  # pointers to nodes this node is a direct result of
         self.check_node = True  # allows turning off formal (general) tests for nodes with variable inputs.
-        # TODO: really needed?
+        # TODO: still needed?
 
         self.data = None  # only for base types (Int, Str, Float, Bool)
 
         # for constraints
         self.constraint_level = 0  # 0: real object, 1: query for real object, 2: query for query for real object...
-        self.constr_obj_view = VIEW_EXT  # when matching a constraint - match constraint to object's specified view
+        self.constr_obj_view = VIEW.EXT  # when matching a constraint - match constraint to object's specified view
 
         # these are not tags, because they directly involve code in the base system (and have syntax to set them)
         self.eval_res = False  # in case we want to explicitly require evaluation of result - not done yet!
         self.res_block = False  # error in result evaluation blocks further evaluation
         self.mutable = False  # mutable nodes are not duplicated during revise - there is one copy
         self.hide = False  # exclude this node (and its subgraph) from searches
+        self.no_revise = False  # don't consider this node for revise candidate
         self.add_goal = None  # add this node to goals - as either int/ext
-        # TODO: could we want to add both at the same time?
+        self.stop_eval_on_exception = False  # do not evaluate further sibling inputs if failed on an input
         self.detach = False  # this node will be detached from input and replaced by its result, once result created
-        self.detached_nodes = []
+        self.detached_nodes = []  # not used anymore
         # list of (nm, nd) - nodes which used to be inputs, but got detached. Used only for drawing
 
         self.just_dup = False
         # flags node as being duplicated - should be on ONLY during the duplication process i.e. turned on and off
         #   inside the duplication.
-        #   TODO: duplication should call `node.on_dup()`
 
         self.dup_of = None  # if node is duplicated, point to node it's a duplicate of
         self.inited = False  # for nodes which need to do something different the first time they appear
@@ -94,10 +94,13 @@ class Node:
         # (text, optional) explain to user why this node is needed. This explanation is independent of where the
         # node is used
 
-        self.context = None  # link to the dialog context this node is part of (avoid need to pass d_context everywhere)
+        self.context: Optional[DialogContext] = None
+        # link to the dialog context this node is part of (avoid need to pass d_context everywhere)
 
+        self.counters = {'dup': 1}
         self.obj_name_singular = self.typename()
         self.obj_name_plural = self.typename() + 's'
+        self.pack_counters = None  # a list of counters to pack (when packing context)
 
     # #############################################################################################
     # ##################### some simple functions with self explanatory names #####################
@@ -228,10 +231,15 @@ class Node:
         if inp not in self.inputs:
             # TODO: check for property? (as short-hand)
             return None
-        if self.get_view_mode(inp) == VIEW_INT:
+        if self.get_view_mode(inp) == VIEW.INT:
             return self.inputs[inp].dat
         else:
             return self.inputs[inp].res.dat
+
+    def get_dats(self, inp):
+        inp = to_list(inp)
+        dats = [self.get_dat(i) for i in inp]
+        return dats[-1] if len(dats) == 1 else None if len(dats) == 0 else tuple(dats)
 
     def get_ext_view(self, txt):
         """
@@ -328,7 +336,7 @@ class Node:
         for i in t:
             if i not in n.inputs:
                 return None
-            n = n.inputs[i] if n.get_view_mode(i) == VIEW_INT else n.inputs[i].res
+            n = n.inputs[i] if n.get_view_mode(i) == VIEW.INT else n.inputs[i].res
         return n.dat
 
     # get a printable string - like get_dat, but adds op
@@ -360,10 +368,12 @@ class Node:
     def input_view(self, inp):
         """
         Gets the selected view of the named input.
+
+        :rtype: Node
         """
         if inp not in self.inputs:
             return None
-        if self.get_view_mode(inp) == VIEW_INT:
+        if self.get_view_mode(inp) == VIEW.INT:
             return self.inputs[inp]
         else:
             return self.inputs[inp].res
@@ -372,6 +382,8 @@ class Node:
         """
         Gets a named input and its view mode. If SET - unroll and get just one.
         """
+        if inp not in self.inputs:
+            return None, None
         view = self.get_view_mode(inp)
         nd = self.input_view(inp)
         if unroll_set:
@@ -396,8 +408,8 @@ class Node:
         exs.append(e)
         return exs
 
-    # TODO: should we check signature ti make sure this is a legal input name?
-    def add_linked_input(self, nm, nd, view=VIEW_EXT):
+    # TODO: should we check signature to make sure this is a legal input name?
+    def add_linked_input(self, nm, nd, view=VIEW.EXT):
         """
         Sets input, view_mode for input, and output link.
 
@@ -420,7 +432,7 @@ class Node:
         self.add_output(name, parent)
         parent.inputs[name] = self
         if view is None:
-            view = VIEW_EXT if parent.is_operator() or name not in parent.signature else parent.signature[name].view
+            view = VIEW.EXT if parent.is_operator() or name not in parent.signature else parent.signature[name].view
         parent.view_mode[name] = view
 
     def replace_input(self, nm, new_node, view=None):
@@ -447,7 +459,7 @@ class Node:
         res = self.result
         if n != res:  # change
             rs = n.get_all_res_nodes()
-            if self in rs: # don't set result if this would create a result loop
+            if self in rs:  # do not set result if this will create a result loop (should we throw an exception?)
                 return
             if res != self:  # remove self from res' list of out_res links
                 res.res_out = [r for r in res.res_out if r != self]
@@ -457,22 +469,7 @@ class Node:
         self.out_type = self.res.get_op_type(no=Node)  # TODO: check no bad effects!
 
     # ast flag - use AST stype features
-    def set_feats(self, nfeats=None, ast_feats=None):
-        # if nfeats is not None:  # deprecated
-        #     if 'evalres' in nfeats:
-        #         self.eval_res = nfeats['evalres']
-        #     if 'mut' in nfeats:
-        #         self.mutable = nfeats['mut']
-        #     if 'hide' in nfeats:
-        #         self.hide = nfeats['hide']
-        #     if 'detach' in nfeats:
-        #         self.hide = nfeats['detach']
-        #     if 'block' in nfeats:
-        #         self.res_block = nfeats['block']
-        #     if 'oview' in nfeats:
-        #         self.constr_obj_view = nfeats['oview']
-        #     if 'goal' in nfeats:
-        #         self.add_goal = nfeats['goal']
+    def set_feats(self, nfeats=None, ast_feats=None, context=None, register=None):
         if ast_feats is not None:
             for f in ast_feats.split(','):
                 if f in ['!', 'evres']:
@@ -481,6 +478,78 @@ class Node:
                     self.res_block = True
                 elif f in ['&', 'mut']:
                     self.mutable = True
+                elif f in ['norev']:
+                    self.no_revise = True
+                elif f in ['stpev']:
+                    self.stop_eval_on_exception = True
+                elif f[0] == '#' and context:  # <#17.3> means set this node's id to 17, and set the created turn to 3
+                    s = f[1:].split('.')
+                    nm, trn = (int(s[0]), int(s[1])) if len(s)>1 else (int(s[0]), None)
+                    if register:
+                        context.register_node(self, renumber=nm)
+                    if trn is not None:
+                        self.created_turn = trn
+                elif f.startswith('E:'):
+                    self.set_extra_attr(f[2:])
+                elif f=='*':
+                    self.evaluated = True
+                    self.result = self
+
+    # used e.g. in compr_tree, when we want to make a string representation of the graph
+    #  this should include all node fields which are NOT set by default (assignment in base Node, or in the derived
+    #    node's __init__) or by the construction. (excluding result!)
+    #  (some are not covered yet, since not needed (?))
+    def get_feat_str(self):
+        feats = []
+        if self.id is not None:
+            feats.append('#%d.%d' % (self.id, self.created_turn))
+        if self.mutable:
+            feats.append('&')
+        if self.eval_res:
+            feats.append('!')
+        if self.res_block:
+            feats.append('|')
+        if self.no_revise:
+            feats.append('norev')
+        if self.stop_eval_on_exception:
+            feats.append('stpev')
+        s = self.get_extra_attr_str()
+        if s:
+            feats.append('E:'+s)
+        if self.evaluated:
+            feats.append('*')
+        return','.join(feats)
+
+    # get counter names from counters starting with 'max_'
+    def get_counters_from_max(self):
+        return [c[4:] for c in self.counters if c.startswith('max_')]
+
+    def counters_to_str(self):
+        if not self.pack_counters:
+            return ''
+        c = [str(self.counters[i]) if i in self.counters else '0' for i in self.pack_counters]
+        return ':'.join(c)
+
+    def str_to_counters(self, s, cnts=None):
+        if s and (self.pack_counters or cnts):
+            vs = s.split(':')
+            cnts = cnts if cnts else self.pack_counters
+            for c, v in zip(cnts, vs):
+                self.counters[c] = int(v)
+
+    # base class - do nothing
+    def get_extra_attr_str(self):
+        if self.pack_counters:
+            return self.counters_to_str()
+        return ''
+
+    def set_extra_attr(self, attr_str):
+        if attr_str and self.pack_counters:
+            self.str_to_counters(attr_str)
+
+    # get counter names from counters starting with 'max_'
+    def get_counters_from_max(self):
+        return [c[4:] for c in self.counters if c.startswith('max_')]
 
     def detach_node(self):
         """
@@ -493,6 +562,24 @@ class Node:
                 res.add_output(nm, nd)
                 nd.detached_nodes.append((nm, self))
             self.outputs = []  # this node is not used as input anymore
+
+    def disconnect_node_from_parents(self):
+        """
+        Removes itself from the input of all its parent.
+        """
+        self.replace_node_on_parents()
+
+    def replace_node_on_parents(self, replacement=None):
+        """
+        Removes itself from the input of all its parent and replaces it (in the parents) by `replacement`, if given.
+
+        :param replacement: the replacement
+        :type replacement: Node or None
+        """
+        for name, node in self.outputs:
+            node.disconnect_input(name)
+            if replacement is not None:
+                replacement.connect_in_out(name, node)
 
     # tags is a general memory mechanism for nodes.
     # tags can have a value (all values are strings!), or have an empty value ('').
@@ -518,7 +605,24 @@ class Node:
                 self.tags.update(tags)
             else:
                 for t in to_list(tags):
-                    self.tags[t] = ''
+                    if isinstance(t, tuple):
+                        k,v = t
+                        if k is not None:
+                            self.tags[k] = v
+                        else:   # TODO - fix this - parsing of tags with no values
+                            self.tags[v] = ''
+                    else:
+                        self.tags[t] = ''
+
+    def get_tags_str(self, no_deco=True):
+        tags = []
+        for t in self.tags:
+            if not no_deco or (TAG_NO_NO_NO not in t and 'db_node' not in t):
+                if self.tags[t]!='':
+                    tags.append('^%s=%s' % (t, self.tags[t]))
+                else:
+                    tags.append('^%s' % t)
+        return ','.join(tags)
 
     # post graph construction (i.e. after all nodes were constructed) sanity check
     # TODO: is this post construction OR pre evaluation? (could be considered a part of either?)
@@ -634,11 +738,6 @@ class Node:
             else:
                 inp.disconnect_input_nodes_recursively(node)
 
-    # def replace_input0(self, nm, nd, view=None):
-    #     if nm in self.inputs:
-    #         self.disconnect_input(nm)
-    #     nd.connect_in_out(nm, self, view=view, force=True)
-
     # #############################################################################################
     # ###################################### Match functions ######################################
 
@@ -670,6 +769,12 @@ class Node:
 
     def func_GE(self, ref):
         return not self.func_LT(ref)
+
+
+    # TODO - do we need to add a max_val and min_val functions - in order to allow comparison of time and event
+    # specifically - min_val of the OBJ. e.g. min_val(event) = slot.start  (or maybe call time_slot's min_val?)
+    # and maybe this should depend on the type of SELF as well?
+    # for "normal" cases, these functions just return self.
 
     # #############################################################################################
 
@@ -734,7 +839,7 @@ class Node:
     #   it up to the derived class implementation to make sure that this will work!
     #       (it may be difficult / need some changes to the custom match pattern!
     #         e.g. passing some flag recursively through the normal match)
-    def custom_match(self, nm, obj, iview=VIEW_INT, oview=None, check_level=False, match_miss=False):
+    def custom_match(self, nm, obj, iview=VIEW.INT, oview=None, check_level=False, match_miss=False):
         return True
 
     # perform tree match between a constraint tree (self) and an object (obj)
@@ -749,7 +854,7 @@ class Node:
     #        the reason we don't take the extension `oview` is that often we don't put this info in results
     # TODO: remove 'res' from input params
     # TODO: mode to input_view instead of explicitly checking for view?? <<<
-    def match(self, obj, iview=VIEW_INT, oview=None, check_level=False, match_miss=False):
+    def match(self, obj, iview=VIEW.INT, oview=None, check_level=False, match_miss=False):
         """
         Match function for NON operator nodes.
         """
@@ -759,11 +864,11 @@ class Node:
             #    in that case, we keep the oest of the intension
             oview = self.constr_obj_view
 
-        if iview == VIEW_EXT and self.res != self:
-            return self.res.match(obj, iview=VIEW_INT, oview=oview, check_level=check_level, match_miss=match_miss)
+        if iview == VIEW.EXT and self.res != self:
+            return self.res.match(obj, iview=VIEW.INT, oview=oview, check_level=check_level, match_miss=match_miss)
 
         # if the constraint specifies it should apply to the result of the object, switch object to its result
-        if oview == VIEW_EXT:
+        if oview == VIEW.EXT:
             obj = obj.res
 
         if check_level and obj.not_operator():
@@ -812,31 +917,36 @@ class Node:
         # obj SETs with more than one element - should be handled explicitly in ref (using ANY/ALL)
         if obj.typename() == 'SET':
             if posname(1) in obj.inputs and len(obj.inputs) == 1:
-                return self.match(obj.input_view(posname(1)), iview=VIEW_INT,
+                return self.match(obj.input_view(posname(1)), iview=VIEW.INT,
                                   check_level=check_level, match_miss=match_miss)
             else:
                 return False  # no match, or multiple objects in set
 
-        check_level = check_level if obj.is_operator() else False
         for nm in self.inputs:
             if self.typename()=='Node':
-                if nm not in obj.inputs or not \
-                        self.input_view(nm).match(obj.input_view(nm), iview=self.view_mode[nm],
-                                                  check_level=check_level, match_miss=match_miss):
+                if nm=='_inp':
+                    for onm in obj.inputs:
+                        if onm not in self.inputs:  # (as long as not explicitly given for self)
+                            if self.input_view(nm).match(obj.input_view(onm), iview=self.view_mode[nm],
+                                                         match_miss=match_miss):
+                                return True
                     return False
+                else:
+                    if nm not in obj.inputs or not \
+                            self.input_view(nm).match(obj.input_view(nm), iview=self.view_mode[nm],match_miss=match_miss):
+                        return False
             elif nm in self.signature:
                 if self.signature[nm].prop:
                     pass  # don't try to match prop
                 elif self.signature[nm].custom:
-                    if not self.custom_match(nm, obj, iview=self.view_mode[nm],
-                                             check_level=check_level, match_miss=match_miss):
+                    if not self.custom_match(nm, obj, iview=self.view_mode[nm], match_miss=match_miss):
                         return False
                 elif self.input_view(nm).typename() == 'Clear':  # do we really want it here...
                     pass  # cleared constraint about this field - match succeeds no matter what the input is
                 elif nm in obj.inputs:
                     if not self.signature[nm].excl_match:
                         if not self.input_view(nm).match(obj.input_view(nm), iview=self.view_mode[nm],
-                                                         check_level=check_level, match_miss=match_miss):
+                                                         match_miss=match_miss):
                             return False
                 elif self.signature[nm].match_miss and match_miss:
                     pass
@@ -895,8 +1005,17 @@ class Node:
     def fallback_search(self, parent, all_nodes=None, goals=None, do_eval=True, params=None):
         return []
 
+    def fallback_search_harder(self, parent, all_nodes=None, goals=None, do_eval=True, params=None):
+        return []
+
+    def populate_update(self, nm):
+        return False
+
     # #############################################################################################
     # ###################################### Match functions ######################################
+
+    def order_score_offset(self, path):
+        return 0
 
     # score by order
     def score_by_order(self, goals, follow_res, exc=-50):
@@ -904,11 +1023,16 @@ class Node:
         Finds all parent nodes of current node and their distance. Score is a combination of distance to goal and how
         recent that goal is (return lowest score).
         """
-        depths, _ = self.parent_nodes(res=follow_res)
+        depths, orig = self.parent_nodes(res=follow_res)
         b = 999999
+        cturn = self.context.turn_num
         for ig, g in enumerate(reversed(goals)):
             if g in depths:
                 s = ig * 100 + depths[g]
+                s += 10 * (cturn - g.created_turn)  # added - prefer nodes created more recently - todo: check!
+                path = self.get_path(g, orig)
+                for p in path:
+                    s += p.order_score_offset(path)
                 if s < b:
                     b = s
         if self in self.context.exception_nodes + self.context.copied_exceptions:
@@ -940,12 +1064,37 @@ class Node:
     def exec(self, all_nodes=None, goals=None):
         pass
 
+    def fix_counters(self):
+        for i in list(self.counters.keys()):
+            if i.startswith('max_'):
+                s = i[4:]
+                if s not in self.counters:
+                    self.counters[s] = 0
+
+    def count_ok(self, nm):
+        if nm in self.counters:
+            s = 'max_' + nm
+            if s in self.counters and self.counters[nm] >= self.counters[s]:
+                return False
+        return True
+
+    def inc_count(self, nm, inc=1):
+        if nm in self.counters:
+            self.counters[nm] += inc
+        else:
+            self.counters[nm] = inc
+
+    def reset_count(self, nm, val=0):
+        self.counters[nm] = val
+
     # validate input
     # execute function (if applicable) set result pointer (possibly create result node(s))
     # raise exception on error
     def evaluate(self, all_nodes=None, goals=None):
         if self.evaluated:  # no need to repeat TODO: make sure this holds!
             return
+
+        self.fix_counters()
 
         # 1. custom input validity checks - called after verified no obligatory input is missing
         if self.constraint_level > 0:
@@ -961,7 +1110,7 @@ class Node:
             for name in self.signature:
                 p = self.signature[name]
                 if p.oblig and name not in self.inputs:
-                    raise MissingValueException(name, self, hints=p.type_name())
+                    raise MissingValueException.make_exc(name, self, hints=p.type_name())
 
         # 4. execute function (for non-type nodes)
         # this will set self.result
@@ -1046,6 +1195,26 @@ class Node:
                     q.insert(0, o)
         return depths, orig
 
+    # after calling parent_nodes, use the calculated 'orig' for more efficiently finding path from self to target node
+    # (returns just one path)
+    def get_path(self, targ, orig):
+        path = []
+        n = targ
+        try:
+            while n != self:
+                path.append(n)
+                n = orig[n][1]
+        except:  # if there is no path
+            return []
+        path.append(n)
+        return list(reversed(path))
+
+    # find a path (one path out of multiple possible) from self to dest node. Empty if no path found
+    def get_a_path(self, dest, follow_res=True):
+        depths, orig = self.parent_nodes(res=follow_res)
+        path = self.get_path(dest, orig)
+        return path
+
     def get_parent(self, typ=None, name=None, newest=True):
         """
         Returns (connection name, direct parent) or (None, None). If node has multiple parents - return last.
@@ -1066,6 +1235,7 @@ class Node:
         for i in self.inputs:
             n = self.inputs[i].res if res_only else self.input_view(i) if follow_view and not follow_res else \
                 self.inputs[i]
+            # if self.typename()=='SWITCH' and self.inp_equals('excl', True) and i!=posname(1):  don't add - todo
             if n not in nds:  # avoid adding node twice - could be that two inputs are the same
                 nds.append(n)
         if follow_res and not follow_res_trans and self.result is not None and \
@@ -1103,9 +1273,8 @@ class Node:
         nodes = nodes if nodes else []
         parents = parents if parents else []
         parents.append(self)
-        follow = self.follow_nodes(parents, follow_res, summarize=summarize, follow_detached=follow_detached,
-                                   follow_view=follow_view, res_only=res_only)
-        for n in follow:  # TODO: follow_re_trans - not used?
+        for n in self.follow_nodes(parents, follow_res, summarize=summarize, follow_detached=follow_detached,
+                                   follow_view=follow_view, res_only=res_only):  # TODO: follow_re_trans - not used?
             if n not in nodes and (not exclude_neg or n.typename() not in ['NEQ', 'NOT', 'NONE']):
                 nodes = n.topological_order(nodes, parents, follow_res, exclude_neg, follow_res_trans,
                                             summarize, follow_detached, follow_view, res_only)
@@ -1123,6 +1292,11 @@ class Node:
                                          follow_detached, follow_view)
         return nodes
 
+    @staticmethod
+    def get_nodes_of_typ(nds, typ):
+        t = to_list(typ)
+        return [n for n in nds if n.typename() in typ]
+
     def get_subnodes_of_type(self, typ, nodes=None, follow_res=True, exclude_neg=False,
                              follow_res_trans=False, summarize=None, follow_detached=False, follow_view=False):
         """
@@ -1130,9 +1304,10 @@ class Node:
         """
         nodes = self.topological_order(nodes, None, follow_res, exclude_neg, follow_res_trans,
                                        summarize, follow_detached, follow_view)
-        typ = to_list(typ)
-        ns = [n for n in nodes if n.typename() in typ]
-        return ns
+        return self.get_nodes_of_typ(nodes, typ)
+        # typ = to_list(typ)
+        # ns = [n for n in nodes if n.typename() in typ]
+        # return ns
 
     def get_goal_path(self, goal=None, excl=None):
         """
@@ -1284,7 +1459,9 @@ class Node:
         return subgraph
 
     # called by duplicate_subgraph, when mode starts with 'auto'
-    def create_new_beg(self, new_beg, mode):
+    # returns:
+    #   new_beg, dup_old_beg, done, ignore, mode
+    def create_new_beg(self, new_beg, mode, rev, root, mid, below):
         raise NotImplementedYetDFException(
             'Revise newMode %s not implemented for node type %s' % (mode, self.typename()), self)
 
@@ -1321,15 +1498,21 @@ class Node:
         self.mutable = other.mutable
         self.hide = other.hide
         self.detach = other.detach
+        self.no_revise = other.no_revise
         # we do NOT copy other.detached_nodes
         self.add_goal = other.add_goal
         self.res_block = other.res_block
         self.constr_obj_view = other.constr_obj_view
+        self.stop_eval_on_exception = other.stop_eval_on_exception
         self.inited = other.inited
         # not copying created_turn - leave as is
+        self.counters = {i: other.counters[i] for i in other.counters}
 
     def typename(self):
         return type(self).__name__
+
+    def typename_cl(self):
+        return type(self).__name__ + '/%s' % self.constraint_level
 
     def outypename(self):
         if self.out_type is None:
@@ -1337,7 +1520,8 @@ class Node:
         return self.out_type.__name__
 
     def singleton_multi_error(self, matches):
-        return 'Multiple %s objects' % self.typename() + ' NL ' + Node.describe_multi(matches)
+        s, o = Node.describe_multi(matches)
+        return 'Multiple %s objects' % self.typename() + ' NL ' + s, o
 
     def singleton_no_match_error(self):
         return 'Singleton error - no matching %s objects' % self.typename()
@@ -1376,8 +1560,11 @@ class Node:
 
     # base function - called per node after it has been duplicated (usually - nothing to do)
     # currently - we call this from two places - duplicate(), and duplicate_tree(). We may want different behaviors.
+    # typically returns self, but could return create another node instead (or None)
+    #           if not self - then needs to make sure that all plumbing is correct!
     def on_duplicate(self, dup_tree=False):
-        pass
+        self.counters['dup'] += 1
+        return self
 
     def print_tree(self, parent, ind=None, seen=None, with_id=True, with_pos=True, trim_leaf=True,
                    trim_sugar=True, mark_val=True, assg=True, with_res=False):
@@ -1404,8 +1591,8 @@ class Node:
             for i in self.inputs:
                 ss, seen = self.inputs[i].print_tree(self, ii, seen, with_id, with_pos, trim_leaf,
                                                      trim_sugar, mark_val, assg, with_res)
-                inps.append('%s%s%s' % (t2, show_prm_nm(i, with_pos), ss))
-            if with_res and self.result!=self:
+                inps.append('%s%s%s' % (t2, show_prm_nm(i, with_pos, self.signature), ss))
+            if with_res and self.result != self:
                 ss, seen = self.result.print_tree(self, ii, seen, with_id, with_pos, trim_leaf,
                                                   trim_sugar, mark_val, assg, with_res)
                 inps.append('%sresult=%s' % (t2, ss))
@@ -1423,7 +1610,7 @@ class Node:
                 ss = str(self.data)
                 if mark_val and parent:
                     nm = [n for (n, m) in self.outputs if m == parent][0]
-                    tp = parent.signature[nm].type
+                    # tp = parent.signature[nm].type
                     if self.typename()[:3].lower() == 'str':  # <<< hack!
                         ss = escape_string(ss)
                         # ss = ss if ss[0]=='"' else '"' + re.sub('"', '\\"', ss) + '"'
@@ -1436,27 +1623,62 @@ class Node:
                 s += '()'
         return s, seen
 
+    def compr_tree(self, seen=None):
+        seen = seen if seen else []
+        if self.id in seen:
+            return id_sexp(self), seen
+        seen.append(self.id)
+        feats = self.get_feat_str()
+        s = '<' + feats + '>' if feats else ''
+        tn = self.typename()
+        s += tn + '?' * self.constraint_level
+        inps = []
+        show_pos = False  # show name of pos param if input order does not respect it
+        nn = len(self.inputs)
+        for i in range(nn):
+            for j in range(i+1, nn):
+                if is_pos(i) and is_pos(j) and posname_idx(i)>posname_idx(j):
+                    show_pos=True
+        for i in self.inputs:
+            ss, seen = self.inputs[i].compr_tree(seen)
+            inps.append('%s%s' % (show_prm_nm(i, show_pos, self.signature), ss))
+        t = self.get_tags_str()
+        if t:
+            inps.append(t)
+        if inps:
+            s += '(' + ','.join(inps) + ')'
+        elif self.data is not None:
+            s += '(%s)' % self.data
+        else:
+            s += '()'
+        return s, seen
+
+    # describe - returns text (possibly empty), and list of objects/values (possibly empty)
     def describe(self, params=None):
         """
         Describes node in text. Override per type.
         """
         if self.data:
-            return str(self.data)
+            return Message(str(self.data))
         if self.result != self:
             return self.result.describe(params)
-        return ''
+        return Message('')
 
-    # base function - yielding message from top node
+    # base function - yielding message+objects from top node
+    # message - text to user
+    # objects - a list of strings/nodes (or paired (str,node) ?) - TBD
     def yield_msg(self, params=None):
         return self.describe(params=params)
 
+    # returns msg and objs
     def yield_failed_msg(self, params=None):
-        return ''
+        return Message('')
 
     # fairly natural text description for a SET of objects.
     # It handles SOME aggr/quals, but not really designed for that (complex logical expressions are not natural in text)
     # nl: new_line indicator. by default ' NL ' - which is understood by draw_graph (depending on graphviz env!)
     # 'compact' is a mode used for showing summarized nodes in the graph drawing
+    # returns msg and objs
     def describe_set(self, nl=' NL ', params=None):
         cont_typs = ['SET', 'OR', 'LIKE', 'ANY', 'NONE']
         params = [] if params is None else params
@@ -1468,16 +1690,20 @@ class Node:
                         return found[0].describe()  # self.describe()
                     else:
                         if 'compact' in params:
-                            return '/'.join([o.describe(params) for o in found])
+                            return '/'.join([o.describe(params).text for o in found])
                         s = '%d %s' % (len(found), found[0].obj_name_plural) + nl
+                        objs = []
                         for o in found:
-                            s = s + o.describe() + nl
-                        return s
+                            m = o.describe()
+                            s = s + m.text + nl
+                            objs += m.objects if m.objects else []
+                        return Message(s, objects=objs)
             elif self.constraint_level > 0:
-                return self.typename() + ' NL ' + self.describe(params)
+                m = self.describe(params)
+                return Message(self.typename() + ' NL ' + m.text, objects=m.objects)
             else:
                 return self.describe(params)
-        return ''
+        return Message('')
 
     # text description for a list of objects (assumed to be of the same type!)
     # also accepts an aggregate (SET only) of objects
@@ -1491,13 +1717,16 @@ class Node:
                 exit(1)
         n = len(matches)
         if n == 1:
-            s = matches[0].describe()
+            return matches[0].describe()
         elif n > 1:
             s = '%d %s' % (n, matches[0].obj_name_plural) + nl
+            objs = []
             for o in matches:
-                s = s + o.describe() + nl
-            return s
-        return ''
+                m = o.describe()
+                s = s + m.text + nl
+                objs += m.objects if m.objects else []
+            return Message(s, objects=objs)
+        return Message('')
 
     # default implementation
     # translate an entity, to new_beg (sexp to be used e.g. in a revise expression)
@@ -1542,7 +1771,7 @@ class Node:
         tp, cl, opts, prog = parse_hint(h)
         i_nlu = to_list(i_nlu) if i_nlu else list(range(len(nlu)))  # list of entity indices
         for i in i_nlu:
-            if nlu[i].typ == NLU_SLOT and not nlu[i].consumed:
+            if nlu[i].typ == NLU_TYPE.NLU_SLOT and not nlu[i].consumed:
                 if 'tname' in opts:
                     old_md = 'hasParam' if 'omode' not in opts else opts['omode']
                     new_md = opts['nmode'] if 'nmode' in opts else 'extend' if old_md == 'hasParam' else 'new'
@@ -1631,7 +1860,7 @@ class Node:
             return otps
         return []
 
-    def get_op_objects(self, objs=None, exclude_neg=False, typs=None):
+    def get_op_objects(self, objs=None, exclude_neg=False, typs=None, view=None):
         """
         Gets all objects directly under operator tree (it may be of different types!)
         """
@@ -1642,16 +1871,16 @@ class Node:
         if exclude_neg and self.typename() in ['NOT', 'NEQ', 'NONE', 'negate']:
             return objs
         for i in self.inputs:
-            n = self.input_view(i)
-            objs = n.get_op_objects(objs, exclude_neg, typs)
+            n = self.inputs[i] if view==VIEW.INT else self.inputs[i].res if view==VIEW.EXT else self.input_view(i)
+            objs = n.get_op_objects(objs, exclude_neg, typs, view)
         return objs
 
-    def get_op_object(self, exclude_neg=False, typs=None):
+    def get_op_object(self, exclude_neg=False, typs=None, view=None):
         """
         Gets one object under operator tree.
         """
         if self.is_operator():
-            obj = self.get_op_objects([], exclude_neg, typs)
+            obj = self.get_op_objects([], exclude_neg, typs, view)
             obj = obj[0] if obj else None
         else:
             obj = self
@@ -1879,8 +2108,12 @@ class Node:
     # these functions are defined in a way to avoid circular dependencies, we hide the import inside the functions
 
     @staticmethod
-    def call_construct(sexp, d_context, register=True, top_only=False, ext=False, add_goal=False,
+    def call_construct(sexp, d_context, register=True, top_only=False,
                        constr_tag=RES_COLOR_TAG, no_post_check=False, do_trans_simp=False, no_exit=False):
+        """
+        :return:
+        :rtype: Tuple[Node, List[Exception]]
+        """
         from opendf.graph.constr_graph import construct_graph
         g, ex = construct_graph(sexp, d_context, register=register, top_only=top_only, constr_tag=constr_tag,
                                 no_post_check=no_post_check, no_exit=no_exit)
@@ -1893,6 +2126,12 @@ class Node:
     @staticmethod
     def call_construct_eval(sexp, d_context, do_eval=True, register=True, top_only=False, add_goal=False,
                             constr_tag=RES_COLOR_TAG, no_post_check=False, do_trans_simp=False, no_exit=False):
+        """
+        Constructs the node from the P-expression.
+
+        :return: the constructed nodes and the list of exceptions
+        :rtype: Tuple[Node, List[Exception]]
+        """
         logger.debug('===constructing: %s' % sexp)
         from opendf.graph.constr_graph import construct_graph
         g, ex = construct_graph(sexp, d_context, register=register, top_only=top_only, constr_tag=constr_tag,
@@ -2009,7 +2248,7 @@ class Node:
         if do_eval:
             e = d.call_eval(add_goal=False)
             if e:
-                raise e[0]
+                raise to_list(e)[0]
 
     def wrap_input_multi(self, inp_nm, new_nm, pref, suf=None, register=True, iview=None, do_eval=False,
                          no_post_check=False, do_trans_simp=False):
@@ -2041,7 +2280,7 @@ class Node:
 
         d, e = self.call_construct(sexp, d_context, register=register, constr_tag=WRAP_COLOR_TAG,
                                    no_post_check=no_post_check, do_trans_simp=do_trans_simp)  #
-        iv = iview if iview else VIEW_EXT
+        iv = iview if iview else VIEW.EXT
         self.add_linked_input(new_nm, d, iv)
         if e:
             re_raise_exc(e)
@@ -2114,11 +2353,35 @@ class Node:
                 parent.wrap_input(inp_nm, pref, suf=suf, register=register, iview=iview, do_eval=False,
                                   do_trans_simp=do_trans_simp)
 
+    # add objects to an input -
+    # the input may currently have 0, 1, or multiple objects
+    def add_objects(self, nm, objs, agg=None):
+        if not objs:
+            return
+        agg = agg if agg else 'SET'
+        objs = to_list(objs)
+        if nm not in self.inputs:
+            oo = objs[0]
+            if len(objs)>1:
+                s = 'SET(' + ','.join([id_sexp(o) for o in objs]) + ')'
+                oo = self.call_construct(s, self.context)
+            oo.connect_in_out(nm, self)
+        else:
+            n = self.inputs[nm]  # NOT view - we don't want to modify the result!
+            if n.typename()==agg:  # already has multi objects
+                for o in objs:
+                    n.add_pos_input(o)
+            else:  # single object
+                self.disconnect_input(nm)
+                s = 'SET(' + ','.join([id_sexp(o) for o in [n]+objs]) + ')'
+                oo, _ = self.call_construct(s, self.context)
+                oo.connect_in_out(nm, self)
+
     # #############################################################################################
 
     # base function. TODO: should we allow to perform implicit accept of prev turn's suggestion?
     def contradicting_commands(self, other):
-        return True  # for now - default is contradiction (don't allow)
+        return False  # used to be True - verify!
 
     # convenience function
     def sugg_confirm_acts(self):
@@ -2141,15 +2404,15 @@ class Node:
     # Note: no need to check if attribute exists - it was already checked by getattr's exec()
     # this is an example of giving a fuller description for an answer, based on the graph
     #    is this too specific? (i.e. logic just for getattr)
-    def getattr_yield_msg(self, attr, val=None):
+    def getattr_yield_msg(self, attr, val=None, plural=None, params=None):
         if val:
-            return attr + ' is ' + val
-        return attr
+            return attr + ' : '  + val, []
+        return attr, []
 
     # ############################################################################################
     # ########################################### SQL  ###########################################
 
-    def generate_sql(self):
+    def generate_sql(self, **kwargs):
         """
         Generate an SQL query to retrieve the node object from a database.
 
@@ -2163,7 +2426,7 @@ class Node:
         if obj is not None:
             query = obj.generate_sql_select()
         if query is not None:
-            query = self.generate_sql_where(query, None)
+            query = self.generate_sql_where(query, None, **kwargs)
 
         return query
 
@@ -2293,7 +2556,7 @@ class Node:
     # Note: it does NOT check that it's legal to add the additional positional input to operator - user's
     #       responsibility!
     def add_pos_input(self, nd, view=None):
-        if self.is_operator():
+        if self.is_operator() or POS in self.signature:
             n = self.max_pos_input() + 1
             nd.connect_in_out(posname(n), self, view)
 
@@ -2576,6 +2839,14 @@ class Node:
             return self.input_view(nm)
         return None
 
+    # select an exception e from a list of exceptions (excs), such that e is attached to the "highest" node under self
+    def get_top_exceptions(self, excs):
+        ex_nds = [e.node for e in excs]
+        nds = self.topological_order()
+        es = [n for n in nds if n in ex_nds]
+        if es:
+            return [e for e in excs if e.node==es[-1]]
+        return []
 
 def create_node_from_dict(node_name, **kwargs):
     """
@@ -2621,3 +2892,25 @@ def search_for_types_in_parents(node, types=()):
         _, parent = parent.get_parent()
 
     return None
+
+
+# get differentiating fields in a list of objects
+def get_diff_fields(objs, ignore_fields=None):
+    fields = defaultdict(set)
+    for o in objs:
+        for i in o.inputs:
+            v = o.get_dat(i)
+            if v is not None:
+                fields[i].add(v)
+    dfields = {}
+    ignore_fields = ignore_fields if ignore_fields else []
+    for f in fields:
+        if f not in ignore_fields:
+            if len(fields[f])>1:
+                dfields[f] = fields[f]
+    return dfields
+
+
+# collect all the different values multiple objects have for a specific input name
+def collect_values(objs, field):
+    return list(set([o.get_dat(field) for o in objs if o.get_dat(field)]))

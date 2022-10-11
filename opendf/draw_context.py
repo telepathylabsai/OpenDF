@@ -43,8 +43,15 @@ environment_definitions = EnvironmentDefinition.get_instance()
 
 def main(path):
     try:
-        with open(path, 'rb') as input_file:
-            d_context = pickle.load(input_file)
+        from os.path import splitext
+        _, ext = splitext(path)
+        if ext == '.bz2':
+            import bz2
+            with bz2.BZ2File(path, 'rb') as input_file:
+                d_context = pickle.load(input_file)
+        else:
+            with open(path, 'rb') as input_file:
+                d_context = pickle.load(input_file)
         draw_all_graphs(d_context)
     except Exception as e:
         raise e

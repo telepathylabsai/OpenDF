@@ -7,16 +7,17 @@ Creates text data (source-target pairs) to be used for training OpenNMT models."
 import argparse
 import dataclasses
 import re
+from dataclasses import dataclass
 from typing import Dict, Iterator, List, TextIO
 
 import jsons
-from pydantic.dataclasses import dataclass
 from tqdm import tqdm
 
-# Install the sm-dataflow package and its core dependencies
-# follow instruction from README.md
 from dataflow.core.constants import SpecialStrings
 from dataflow.core.dialogue import Dialogue, Turn, TurnId
+
+
+simplify=True
 
 # We assume all dialogues start from turn 0.
 # This is true for MultiWoZ and CalFlow datasets.
@@ -49,6 +50,7 @@ def stringify_turn(
     include_agent_utterance: bool,
     include_described_entities: bool,
     tokenize_utterance: bool,
+    simp: bool,
 ) -> str:
     """Render a turn as a string and inserts corresponding delimiters before each segment in the string."""
     segments: List[str] = []
@@ -64,9 +66,12 @@ def stringify_turn(
 
     if include_program:
         segments.append(SpecialStrings.START_OF_PROGRAM)
-        lispress_tokens = turn.tokenized_lispress()
+        lispress_tokens = turn.lispress if simp else turn.tokenized_lispress()
         assert lispress_tokens
-        segments.append(" ".join(lispress_tokens))
+        if simp:
+            segments.append(lispress_tokens)
+        else:
+            segments.append(" ".join(lispress_tokens))
 
     if include_agent_utterance:
         segments.append(SpecialStrings.SPEAKER_AGENT)
@@ -95,6 +100,7 @@ def create_source_str(
     include_agent_utterance: bool,
     include_described_entities: bool,
     tokenize_utterance: bool,
+    simp: bool,
 ) -> str:
     """Creates the source sequence string."""
     segments: List[str] = []
@@ -107,6 +113,7 @@ def create_source_str(
             include_agent_utterance=include_agent_utterance,
             include_described_entities=include_described_entities,
             tokenize_utterance=tokenize_utterance,
+            simp=simp,
         )
         for idx, context_turn in enumerate(context_turns)
     ]
@@ -122,6 +129,7 @@ def create_source_str(
             include_agent_utterance=False,
             include_described_entities=False,
             tokenize_utterance=tokenize_utterance,
+            simp=simp,
         ),
         # add this special token to trigger the decoder to produce the program
         SpecialStrings.START_OF_PROGRAM,
@@ -136,6 +144,7 @@ def create_onmt_text_datum_for_turn(
     include_program: bool,
     include_agent_utterance: bool,
     include_described_entities: bool,
+    simp: bool,
 ) -> OnmtTextDatum:
     """Creates the OpenNMT text datum for a turn."""
     datum_id_str = jsons.dumps(TurnId(dialogue_id, curr_turn.turn_index))
@@ -146,6 +155,7 @@ def create_onmt_text_datum_for_turn(
         include_agent_utterance=include_agent_utterance,
         include_described_entities=include_described_entities,
         tokenize_utterance=False,
+        simp=simp,
     )
     src_tok_str = create_source_str(
         curr_turn=curr_turn,
@@ -154,12 +164,19 @@ def create_onmt_text_datum_for_turn(
         include_agent_utterance=include_agent_utterance,
         include_described_entities=include_described_entities,
         tokenize_utterance=True,
+        simp=simp,
     )
-    tgt_str = " ".join(curr_turn.tokenized_lispress())
+
+    if not simp:  # JM
+        tgt_str = " ".join(curr_turn.tokenized_lispress())
+    else:
+        tgt_str = curr_turn.lispress
 
     # make sure there are not consecutive spaces in the tokenized sequence
-    assert re.search(r"\s{2,}", src_tok_str) is None
-    assert re.search(r"\s{2,}", tgt_str) is None
+    ## assert re.search(r"\s{2,}", src_tok_str) is None
+    ## assert re.search(r"\s{2,}", tgt_str) is None
+    src_tok_str = re.sub('  ', ' ', src_tok_str)  # JM
+    tgt_str = re.sub('  ', ' ', tgt_str)
 
     return OnmtTextDatum(
         datum_id_str=datum_id_str,
@@ -175,11 +192,12 @@ def create_context_turns(
     num_context_turns: int,
     min_turn_index: int,
 ) -> List[Turn]:
+    mm = max(list(turn_lookup.keys()))
     return [
         turn_lookup[tt]
         for tt in range(
-            max(min_turn_index, curr_turn_index - num_context_turns), curr_turn_index
-        )
+            max(min_turn_index, curr_turn_index - num_context_turns), curr_turn_index) if tt in turn_lookup
+        
     ]
 
 
@@ -190,6 +208,7 @@ def create_onmt_text_data_for_dialogue(
     include_program: bool,
     include_agent_utterance: bool,
     include_described_entities: bool,
+    simp: bool,
 ) -> Iterator[OnmtTextDatum]:
     """Yields OnmtTextDatum for a dialogue."""
     turn_lookup: Dict[int, Turn] = {turn.turn_index: turn for turn in dialogue.turns}
@@ -210,6 +229,7 @@ def create_onmt_text_data_for_dialogue(
             include_program=include_program,
             include_agent_utterance=include_agent_utterance,
             include_described_entities=include_described_entities,
+            simp=simp,
         )
         yield onmt_text_datum
 
@@ -222,6 +242,7 @@ def main(
     include_agent_utterance: bool,
     include_described_entities: bool,
     onmt_text_data_outbase: str,
+    simp: bool
 ) -> None:
     fps = OnmtTextDatum.create_output_files(onmt_text_data_outbase)
 
@@ -236,6 +257,7 @@ def main(
             include_program=include_program,
             include_agent_utterance=include_agent_utterance,
             include_described_entities=include_described_entities,
+            simp=simp,
         ):
             for field_name, field_value in dataclasses.asdict(onmt_text_datum).items():
                 fp = fps[field_name]
@@ -269,6 +291,12 @@ def add_arguments(argument_parser: argparse.ArgumentParser) -> None:
         help="if True, include the gold agent utterance for the context turn parts",
     )
     argument_parser.add_argument(
+        "--simplify_format",
+        default=False,
+        action="store_true",
+        help="if True, sexps are in simplified format",
+    )
+    argument_parser.add_argument(
         "--include_described_entities",
         default=False,
         action="store_true",
@@ -296,4 +324,5 @@ if __name__ == "__main__":
         include_agent_utterance=args.include_agent_utterance,
         include_described_entities=args.include_described_entities,
         onmt_text_data_outbase=args.onmt_text_data_outbase,
+        simp = args.simplify_format
     )

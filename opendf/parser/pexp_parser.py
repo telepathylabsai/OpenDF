@@ -15,7 +15,7 @@ import ply.yacc as yacc
 # IDENTIFIER_EXPRESSION = r"[:a-zA-Z0-9_-][^\=,\(\)\<\>\{\}\#\$]*"
 from opendf.exceptions.python_exception import LexerException, ParserException
 
-IDENTIFIER_EXPRESSION = r"[:a-zA-Z0-9_\-\+\#][^\=,\(\)]*"
+IDENTIFIER_EXPRESSION = r"[;:a-zA-Z0-9_\-\+\#][^\=,\(\)]*"
 # IDENTIFIER_EXPRESSION = r"[:a-zA-Z0-9_-][^\=,\(\)]*"
 IDENTIFIER_REGEX = re.compile(IDENTIFIER_EXPRESSION)
 
@@ -158,7 +158,7 @@ class ASTNode:
                 if name:
                     input_str.append(f"{TAG_CHAR}{name}={value}")
                 else:
-                    input_str.append(f"^{value}")
+                    input_str.append(f"^{value}")   # TODO - fix - if no '=...' given, then we have only a name (not a value) - fix in add_tags as well
             if input_str:
                 message += ", ".join(input_str)
             message += ")"

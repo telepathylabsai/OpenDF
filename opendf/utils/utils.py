@@ -19,7 +19,7 @@ def get_type_and_clevel(s):
         if s[-1] == '?':
             clevel += 1
             s = s[:-1]
-        elif len(s) > 8 and s.startswith('Constraint[') and s[-1] == ']':
+        elif len(s) > 8 and s.startswith('Constraint[') and s[-1] == ']':  # trying to support SMCalFlow S-exps
             clevel += 1
             s = s[len('Constraint['):-1]
         else:
@@ -125,6 +125,11 @@ def flatten_list(a):
             l.append(i)
     return l
 
+
+def and_values_str(vals):
+    if len(vals)>1:
+        return ', '.join(vals[:-1]) + ' and ' + vals[-1]
+    return vals[0]
 
 # ################################################################################################
 
@@ -240,3 +245,39 @@ def geo_distance(lat1, long1, lat2, long2):
 def str_to_datetime(st):
     s = [int(i) for i in st.split('/')]
     return datetime.datetime(s[0], s[1], s[2], s[3], s[4])
+
+
+# two convenience functions to represent (and retrieve) a dictionary as a short string
+#   the key names of interest are given as input (so that the string does not have to include them)
+def dict_to_str(dct, keys):
+    s = [str(dct[i]) if i in dct else '' for i in keys]
+    return ':'.join(s)
+
+
+def str_to_dict(st, keys):
+    fs = st.split(':')
+    return {i:j for i, j in zip(keys, fs) if j}
+
+
+def balance_parentheses(string):
+    """
+    Adds parentheses to the `string`, in order to balance the parentheses.
+    Missing opening parentheses are added to the beginning of the string;
+    while missing closing ones are added to the end.
+
+    :param string: the string
+    :type string: str
+    :returns: the balanced string
+    :rtype: str
+    """
+    unbalanced = 0
+    for c in string:
+        if c == '(':
+            unbalanced += 1
+        elif c == ')':
+            unbalanced -= 1
+
+    if unbalanced > 0:
+        return string + ')' * unbalanced
+    else:
+        return '(' * -unbalanced + string

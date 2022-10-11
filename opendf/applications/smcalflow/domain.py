@@ -1,5 +1,5 @@
 """
-Useful functions to deal with smcalflow nodes.
+Useful functions to deal with SMCalFlow nodes.
 """
 
 from typing import Optional, Dict, List
@@ -9,9 +9,9 @@ import opendf.utils.utils as utils
 
 from opendf.applications.smcalflow.storage import RecipientEntry, EventEntry, LocationEntry, AttendeeEntry, Storage, \
     HolidayEntry
-from opendf.applications.smcalflow.stub_data import db_persons, CURRENT_RECIPIENT_ID, db_events, weather_places, \
-    place_has_features, CURRENT_RECIPIENT_LOCATION_ID, HOLIDAYS
-from opendf.applications.core.nodes.time_nodes import datetime_to_str
+# from opendf.applications.smcalflow.stub_data import db_persons, CURRENT_RECIPIENT_ID, db_events, weather_places, \
+#     place_has_features, CURRENT_RECIPIENT_LOCATION_ID, HOLIDAYS
+from opendf.applications.core.nodes.time_nodes import datetime_to_str, HOLIDAYS
 from opendf.defs import *
 from opendf.graph.nodes.node import Node
 from opendf.parser.pexp_parser import escape_string
@@ -420,9 +420,6 @@ class GraphDB(Storage):
         logger.debug('~~~new db_event:')
         logger.debug(event)
 
-        # d = self._create_event_node(event)
-        # self.gr_events[event.identifier] = d
-
         return event
 
     def update_event(self, identifier, subject, start, end, location, attendees):
@@ -435,8 +432,6 @@ class GraphDB(Storage):
         new_event = EventEntry(old_event.identifier, subject, start, end, location_entry,
                                old_event.organizer, old_event.attendees)
 
-        # d = self._create_event_node(new_event)
-        # self.gr_events[new_event.identifier] = d
         self.gr_events.pop(new_event.identifier, None)
         self.db_events[new_event.identifier] = new_event
 
@@ -533,15 +528,18 @@ class GraphDB(Storage):
         return self.friends_by_recipient.get(recipient_id, [])
 
 
-def fill_graph_db(d_context):
+def fill_graph_db(d_context, stub_data_file, people=None, events=None):
     graph_db = GraphDB.get_instance()
+    db_events, db_persons, weather_places, HOLIDAYS, CURRENT_RECIPIENT_ID, CURRENT_RECIPIENT_LOCATION_ID, \
+    place_has_features, _ = get_stub_data_from_json(stub_data_file)
 
-    def fill_recipient_graph_db():
+    def fill_recipient_graph_db(people=None):
         gr_recipient: Dict[int, Node] = {}
         # gr_attendee: Dict[int, Node] = {}
         db_recipient: Dict[int, RecipientEntry] = {}
         friends_by_recipient: Dict[int, List[int]] = {}
-        for p in db_persons:
+        people = people if people else db_persons
+        for p in people:
             # create recipient entry
             recipient_entry = RecipientEntry(p.id, p.fullName, p.firstName, p.lastName, p.phone_number,
                                              p.email_address, p.manager_id)
@@ -555,23 +553,13 @@ def fill_graph_db(d_context):
             for friend in p.friends:
                 friends_by_recipient.setdefault(p.id, []).append(friend)
 
-            # create attendee graph
-            # noinspection PyTypeChecker
-            # TODO: get `show as status` and `response status` from stub data
-            # attendee = AttendeeEntry(None, recipient_entry, "Busy", "NotResponded")
-            # string_entry = attendees_to_str_node([attendee], [recipient_graph])
-            # attendee_graph, _ = Node.call_construct_eval(string_entry, constr_tag=NODE_COLOR_DB)
-            # attendee_graph.tags[DB_NODE_TAG] = 0
-            # gr_attendee[recipient_entry.identifier] = attendee_graph
-
         graph_db.gr_recipients = gr_recipient
-        # graph_db.gr_attendees = gr_attendee
         graph_db.db_recipients = db_recipient
         graph_db.friends_by_recipient = friends_by_recipient
         graph_db.set_current_recipient_id(CURRENT_RECIPIENT_ID)
         graph_db.set_current_recipient_location_id(CURRENT_RECIPIENT_LOCATION_ID)
 
-    def fill_event_graph_db():
+    def fill_event_graph_db(events=None):
         db_event = {}
         gr_event = {}
         gr_attendee: Dict[(int, int), Node] = {}
@@ -588,7 +576,8 @@ def fill_graph_db(d_context):
             locations[weather_place.name] = location_entry
             location_by_id[weather_place.id] = location_entry
 
-        for e in db_events:
+        events = events if events else db_events
+        for e in events:
             location = locations[location_by_id[e.location].name]
             attendees = []
             for att, accepted, show_as in zip(to_list(e.attendees), to_list(e.accepted), to_list(e.showas)):
@@ -609,7 +598,6 @@ def fill_graph_db(d_context):
             event_entry = EventEntry(e.id, e.subject, str_to_datetime(e.start), str_to_datetime(e.end), location,
                                      organizer, attendees)
 
-            # pnodes = [graph_db.get_recipient_graph(attendee.recipient.identifier) for attendee in attendees]
             s = event_to_str_node(event_entry, pnodes)
             d, _ = Node.call_construct_eval(s, d_context, constr_tag=NODE_COLOR_DB)
             d.tags[DB_NODE_TAG] = 0
@@ -624,12 +612,9 @@ def fill_graph_db(d_context):
         graph_db.location_by_id = location_by_id
         graph_db.location_features = place_has_features
 
-    # prt = d_context.show_print
-    d_context.set_print(False)
     d_context.set_next_node_id(10000)  # put DB nodes id's to be high
-    fill_recipient_graph_db()
-    fill_event_graph_db()
-    # d_context.set_print(prt)
+    fill_recipient_graph_db(people)
+    fill_event_graph_db(events)
     d_context.set_next_node_id(0)  # reset node id's to start from 0
 
     return graph_db
@@ -671,3 +656,130 @@ def Ptimedelta_to_period_values(p):
 
 def Ptimedelta_to_period_sexp(p):
     return period_str(*Ptimedelta_to_period_values(p))
+
+
+
+# ===========================================================
+
+
+
+"""
+Holds the stub data (concerning the SMCalFlow application) to test the system.
+"""
+import datetime
+from collections import namedtuple
+from opendf.applications.core.nodes.time_nodes import datetime_to_domain_str
+
+
+# not bothering with nicknames for now
+DBPerson = namedtuple(
+    'DBPerson', ['fullName', 'firstName', 'lastName', 'id', 'phone_number', 'email_address', 'manager_id', 'friends'])
+
+
+def add_db_person(persons, fullName=None, firstName=None, lastName=None, id=None, phone=None, email=None, manager=None, friends=None):
+    if fullName and not firstName and not lastName:
+        nms = fullName.split()
+        if len(nms) > 1:
+            firstName, lastName = nms[0], ' '.join(nms[1:])
+        else:
+            firstName, lastName = nms[0], 'UNK'
+    firstName = firstName if firstName else 'UNK'
+    lastName = lastName if lastName else 'UNK'
+    fullName = fullName if fullName else '%s %s' % (firstName, lastName)
+    phone = phone if phone else 'UNK'
+    email = email if email else '%s.%s@opendf.com' % (firstName, lastName)
+    if id is None:
+        id = max([p.id for p in persons]) + 1 if persons else 1001
+
+    manager = manager if manager else id
+    friends = friends if friends else []
+    persons.append(DBPerson(fullName, firstName, lastName, id, phone, email, manager, friends))
+    return persons
+
+
+# for multiple attendees - semicolon separated (NOT comma - this interferes with sexp parsing!!)
+DBevent = namedtuple('DBevent', ['id', 'subject', 'start', 'end', 'location', 'attendees', 'accepted', 'showas'])
+
+
+def make_db_event(id=None, subject=None, start=None, end=None,
+                  location=None, attendees=None, accepted=None, showas=None):
+
+    subject = subject if subject else 'UNK'
+    if start and isinstance(start, datetime.datetime):
+        start = datetime_to_domain_str(start)
+    start = start if start else 'UNK'  # fix should be 'Now'?
+    if end and isinstance(end, datetime.datetime):
+        end = datetime_to_domain_str(end)
+    end = end if end else 'UNK'   # fix
+    location = location if location is not None else 'UNK'
+    attendees = attendees if attendees else []
+    accepted = accepted if accepted else []
+    showas = showas if showas else 'Busy'
+    ev = DBevent(id, subject, start, end, location, attendees, accepted, showas)
+    return ev
+
+
+def add_db_event(events, id=None, subject=None, start=None, end=None,
+                 location=None, attendees=None, accepted=None, showas=None):
+    ev = make_db_event(id, subject, start, end, location, attendees, accepted, showas)
+    events.append(ev)
+    return events
+
+
+def mod_db_event(events, id, subject=None, start=None, end=None,
+                 location=None, attendees=None, accepted=None, showas=None):
+    evs = [e for e in events if e.id!=id]
+    ev = make_db_event(id, subject, start, end, location, attendees, accepted, showas)
+    evs.append(ev)
+    return evs
+
+
+WeatherPlace = namedtuple("WeatherPlace",
+                          ['id', 'name', 'address', 'latitude', 'longitude', 'radius', 'always_free', 'is_virtual'])
+
+
+
+def add_db_place(places, id=None, name=None, address=None, latitude=None, longtitude=None,
+                 radius=20, always_free=True, is_virtual=False):
+    id = id if id is not None else max([p.id for p in places]) + 1
+    p = WeatherPlace(id, name, address, latitude, longtitude, radius, always_free, is_virtual)
+    places.append(p)
+    return places
+
+# TODO = add weather table!
+weather_types = ['cloud', 'clear', 'rain', 'snow', 'storm', 'wind', 'sleet']
+
+from datetime import timedelta
+
+
+# if start/end dates have day of week instead of absolute date, we convert that to
+#   the next matching weekday after the system's "current date"
+def json_to_db_event(s):
+    td = get_system_date()
+    days = ['s', 'MON', 'TUE', 'WED', 'THU', 'FRI', 'SAT', 'SUN']
+    dts = {days[d]:td + timedelta(days=[i for i in range(1, 8) if (td + timedelta(days=i)).isoweekday() == d][0])
+             for d in range(1,8)}
+    dates = {i:'%d/%d/%d' % (dts[i].year, dts[i].month, dts[i].day) for i in dts}
+
+    ss = s[2].split('/')
+    if ss[0] in dates:
+        s[2] = '%s/%s/%s' % (dates[ss[0]], ss[1], ss[2])
+
+    ee = s[3].split('/')
+    if ee[0] in dates:
+        s[3] = '%s/%s/%s' % (dates[ee[0]], ee[1], ee[2])
+
+    ev = DBevent(*s)
+    return ev
+
+
+def get_stub_data_from_json(fname):
+    import json
+    stub_data = json.loads(''.join(open(fname, 'r').readlines()))
+    db_events = [json_to_db_event(i) for i in stub_data['db_events']]
+    db_persons = [DBPerson(*i) for i in stub_data['db_persons']]
+    weather_places = [WeatherPlace(*i) for i in stub_data['weather_places']]
+    HOLIDAYS = {(i[0], i[1]): i[2] for i in stub_data['HOLIDAYS']}
+    WEATHER_TABLE = {(float(j) for j in i.split('_')) : stub_data['WEATHER_TABLE'][i] for i in stub_data['WEATHER_TABLE']}
+    return db_events, db_persons, weather_places, HOLIDAYS, stub_data['CURRENT_RECIPIENT_ID'], \
+           stub_data['CURRENT_RECIPIENT_LOCATION_ID'], stub_data['place_has_features'], WEATHER_TABLE

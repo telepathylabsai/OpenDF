@@ -14,6 +14,7 @@ from opendf.graph.nodes.framework_operators import LIKE
 from opendf.applications.smcalflow.nodes.event_factory import *
 from opendf.defs import posname
 
+
 storage = StorageFactory.get_instance()
 environment_definitions = EnvironmentDefinition.get_instance()
 
@@ -38,7 +39,8 @@ class ShowAsStatus(Node):
             selection, Database.EVENT_HAS_ATTENDEE_TABLE.columns.show_as_status, **kwargs)
 
     def describe(self, params=None):
-        return self.get_dat(posname(1))
+        v = self.get_dat(posname(1))
+        return Message(f"The status is {v}", objects=['VAL#='+v])
 
 
 class WeatherQuantifier(Node):
@@ -98,7 +100,8 @@ class ResponseStatusType(Node):
             selection, Database.EVENT_HAS_ATTENDEE_TABLE.columns.response_status, **kwargs)
 
     def describe(self, params=None):
-        return self.get_dat(posname(1))
+        v = self.get_dat(posname(1))
+        return Message(v, objects=['VAL#'+v])
 
 
 # #################################################################################################
@@ -126,11 +129,12 @@ class LocationKeyphrase(Node):
         if p is None and posname(1) in self.inputs:
             p = self.get_dat(posname(1))
         if p is None:
-            return None
+            return Message('')
+        o = ['PL#'+p]
         if 'add_prep' in params:  # some logic about prepositions
             if p.lower() != 'online':
                 p = 'in ' + p
-        return p
+        return Message(p, objects=o)
 
     def generate_sql_select(self):
         return select(Database.LOCATION_TABLE)
@@ -207,12 +211,14 @@ class Place(Node):
                 if latitude and longitude:
                     message = f"{latitude}, {longitude}"
 
+        o = ['PL#'+message]
         if not message:
             # TODO: maybe it should raise an exception if there is no information about place, but raise before get
             #  to this point
             message = "Sorry, I don't no where you are."
+            o=['PL#Unk']
 
-        return message
+        return Message(message, objects=o)
 
 
 class GeoCoords(Node):
@@ -232,7 +238,8 @@ class GeoCoords(Node):
             raise MissingValueException('longitude', self)
 
     def describe(self, params=None):
-        return '%s;%s' % (self.get_dat('lat'), self.get_dat('long'))
+        v = '%s;%s' % (self.get_dat('lat'), self.get_dat('long'))
+        return Message(v, objects=['PL#' + v])
 
 
 # TODO: do we also need a Location() type?
@@ -272,7 +279,8 @@ class WeatherTable(Node):
                 d = ' NL '.join(s)
             if params and 'compact' in params:
                 d = f"Weather for  NL {d.split()[0]}"
-        return d if d else ''
+        d = d if d else ''
+        return Message(d, objects=['VAL#'+d])
 
 
 # #################################################################################################
@@ -382,18 +390,23 @@ class Recipient(Node):
 
     def describe(self, params=None):
         params = params if params else []
-        if 'SQL_Event' in params:
-            return str(self.get_dat('id'))
         i = self.get_dat('id')
-        if i and i == storage.get_current_recipient_id():
-            return 'You'
+        obj = ['PR#%d' % i] if i is not None else []
+        if 'SQL_Event' in params:
+            return Message(str(i), objects=obj)
+        if i is not None and i == storage.get_current_recipient_id():
+            return Message('You', objects=obj)
         if 'firstName' in self.inputs and 'lastName' in self.inputs:
-            return '%s %s' % (self.simple_desc('firstName'), self.simple_desc('lastName'))
+            v = '%s %s' % (self.simple_desc('firstName'), self.simple_desc('lastName'))
+            obj = obj if obj else ['PR#'+v]
+            return Message(v, objects=obj)
         if 'name' in self.inputs:
-            return '%s' % self.simple_desc('name')
+            v = '%s' % self.simple_desc('name')
+            obj = obj if obj else ['PR#'+v]
+            return Message(v, objects=obj)
         if 'id' in self.inputs:
-            return 'id=%s' % self.simple_desc('id')
-        return ''
+            return Message('id=%s' % self.simple_desc('id'), obj)
+        return Message('', objects=obj)
 
     def fallback_search(self, parent, all_nodes=None, goals=None, do_eval=True, params=None):
         # prs = [i for i in graph_db.gr_persons if self.match(i)]
@@ -405,8 +418,46 @@ class Recipient(Node):
                 return fr
         return prs
 
+    def populate(self, params=None):
+        verified = params is not None and 'verified' in params
+        if environment_definitions.populating_db:
+            import opendf.misc.populate_utils as pop
+            dctx = self.context
+            if not verified:
+                pars, alg = pop.parse_agent_txt(dctx.agent_txt)
+                if pars:
+                    subs = pars.get_subnodes()
+                    verified = any([i.name in ['POS_GEN', 'POS_PR'] for i in subs])
+            if verified:
+                # TODO - if POS_PR, then verify that the found person is the one we looked for?
+                print('insert %s' % re.sub('\([ \n]+', '(', self.show()))
+                path, names = self.get_input_path(':LIKE.:PersonName.pos1')
+                if path:
+                    nm = path[-1].dat
+                    pop.add_person(dctx, fullName=nm)
+                    return True
+        return False
+
+    def fallback_search_harder(self, parent, all_nodes=None, goals=None, do_eval=True, params=None):
+        if environment_definitions.populating_db:
+            # from opendf.misc.populate_utils import get_agent_person_ents, add_person, parse_agent_txt
+            # dctx = self.context
+            # # pos, neg = get_agent_person_ents(dctx)
+            # pars = parse_agent_txt(dctx.agent_txt)
+            # spars = '%s' % pars[0] if pars else ''
+            # # if not pos and not neg:
+            # if 'POS_GEN' in spars:
+            #     print('insert %s' % re.sub('\([ \n]+', '(', self.show()))
+            #     path, names = self.get_input_path(':LIKE.:PersonName.pos1')
+            #     if path:
+            #         nm = path[-1].dat
+            #         add_person(dctx, fullName=nm)
+            if self.populate(params=params):
+                return self.fallback_search(parent, all_nodes, goals, do_eval, params)
+        return []
+
     def search_error_message(self, node):
-        p = self.describe()
+        p = self.describe().text
         if p:
             message = 'Could not find a person matching the name "%s"' % p
         else:
@@ -457,13 +508,18 @@ class Attendee(Node):
 
     def describe(self, params=None):
         rcp = self.input_view('recipient')
+        obj = []
         if rcp:
-            resp = [self.input_view(i).describe(params).lower() for i in ['response', 'show'] if i in self.inputs]
-            s = rcp.describe(params)
+            resp = [self.input_view(i).describe(params).text.lower() for i in ['response', 'show'] if i in self.inputs]
+            msg = rcp.describe(params)
+            s, obj = msg.text, msg.objects
             if 'eventid' in self.inputs:
-                s = s + ' @ event#%d' % self.get_dat('eventid')
-            return s + ': ' + ', '.join(resp) if resp else s
-        return ''
+                v = self.get_dat('eventid')
+                s = s + ' @ event#%d' % v
+                obj += ['EV#%d' % v]
+            ss = s + ': ' + ', '.join(resp) if resp else s
+            return Message(ss, objects=obj)
+        return Message('', objects=obj)
 
     def generate_sql_select(self):
         return select(Database.EVENT_HAS_ATTENDEE_TABLE).join(Database.RECIPIENT_TABLE)
@@ -525,6 +581,17 @@ class Attendee(Node):
 
 # #################################################################################################
 # ############################################ event  #############################################
+
+def check_event_possible(att, st, en, loc, avoid_id=None):
+    for a in att:
+        evs = storage.get_time_overlap_events(st, en, a, avoid_id=avoid_id)
+        if evs:
+            return False
+    if loc and loc != 'online':
+        evs = storage.get_location_overlap_events(loc, start=st, end=en)
+        if evs:
+            return False
+    return True
 
 
 class Event(Node):
@@ -619,20 +686,32 @@ class Event(Node):
 
     def describe(self, params=None):
         params = params if params else []
+        objs = []
         s = 'meeting' if self.get_dat('subject') is None else self.get_dat('subject')
+        pp = params
+        if isinstance(params, dict):
+            pp['add_prep'] = 1
+        else:
+            pp += ['add_prep']
         if 'attendees' in self.inputs:
-            t = self.input_view('attendees').describe_set(params=params)
+            msg = self.input_view('attendees').describe_set(params=params)
+            t, o = msg.text, msg.objects
             if t:
                 s += ' with ' + t
+            objs += o
         if 'slot' in self.inputs:
-            t = self.input_view('slot').describe(params)
+            msg = self.input_view('slot').describe(params)
+            t, o = msg.text, msg.objects
             if t:
                 s += t
+            objs += o
         if 'location' in self.inputs:
-            t = self.input_view('location').describe(params + ['add_prep'])
+            msg = self.input_view('location').describe(pp)
+            t, o = msg.text, msg.objects
             if t:
                 s += ' NL and held ' + t
-        return s
+            objs += o
+        return Message(s, objects=objs)
 
     # check if this event is compatible with external data
     #  if this is a common pattern - we may want to add this as a base function
@@ -658,7 +737,7 @@ class Event(Node):
                     m = 'You already have' if cuid in evs[0].get_attendee_ids_set() else \
                         storage.get_recipient_entry(a).full_name + ' already has'
                     raise ClashEventSuggestionsException(
-                        '%s another event overlapping: NL %s' % (m, e.describe()), self)
+                        '%s another event overlapping: NL %s' % (m, e.describe().text), self)
         loc = self.get_dat('location')
         if loc and loc != 'online':
             evs = storage.get_location_overlap_events(loc, start=st, end=en, avoid_id=avoid_id)
@@ -668,7 +747,7 @@ class Event(Node):
                 else:
                     e, ex = self.call_construct_eval(event_to_str_node(evs[0]), self.context, register=False)
                     raise ClashEventSuggestionsException(
-                        'Another event is using this location: NL %s' % e.describe(), self)
+                        'Another event is using this location: NL %s' % e.describe().text, self)
         return clash
 
     def contradicting_commands(self, other):
@@ -677,19 +756,44 @@ class Event(Node):
                 return True
         return False
 
-    def getattr_yield_msg(self, attr, val=None):
+    def getattr_yield_msg(self, attr, val=None, plural=None, params=None):
         subj = self.get_dat('subject')
         subj = 'The ' + subj if subj else 'it'
         slot = self.input_view('slot')
+        obj = []
         if attr == 'start':  # if it does not exist, then getattr would have already complained
             nd = slot.input_view(attr)
-            tm = nd.describe(params=['add_prep'])
-            return subj + ' is ' + tm
+            m = nd.describe(params=['add_prep'])
+            return Message(subj + ' is ' + m.text, objects=obj)
         if attr == 'end':
             nd = slot.input_view(attr)
-            tm = nd.describe(params=['add_prep'])
-            return subj + ' ends ' + tm
+            m = nd.describe(params=['add_prep'])
+            return Message(subj + ' ends ' + m.text, objects=obj)
         return super(type(self), self).getattr_yield_msg(attr, val=val)
+
+    def yield_msg(self, params=None):
+        obj = []
+        if 'yn_filter' in params:
+            filt = params['yn_filter']
+            if filt.typename()=='Event' and filt.constraint_level==1:
+                attrs = [i for i in filt.inputs]
+                if len(attrs)==1:
+                    attr = attrs[0]
+                    nd = filt.input_view(attr)
+                    subj = self.get_dat('subject')
+                    if attr=='attendees':
+                        rcp = [i for i in nd.topological_order() if i.typename()=='Recipient' and i.constraint_level==0]
+                        if len(rcp)==1:
+                            pname = rcp[0].get_dat('name')
+                            i = rcp[0].get_dat('id')
+                            obj = ['PR#%d'%i] if i is not None else ['PR#' + pname]
+                            match = filt.match(self)
+                            if match:
+                                return Message('Yes, %s is invited to the "%s"' % (pname, subj), objects=obj + ['VAL#Yes'])
+                            else:
+                                return Message('No, %s is not invited to the "%s".' % (pname, subj), objects=obj + ['VAL#No'])
+        return Message('', objects=obj)
+
 
     def generate_sql_select(self):
         return select(
@@ -749,6 +853,29 @@ class Event(Node):
             Database.EVENT_HAS_ATTENDEE_TABLE.columns.event_id == Database.EVENT_TABLE.columns.id
         ).scalar_subquery()
         return attendees_subquery
+
+    @staticmethod
+    def populate(flt):
+        success = False
+        if environment_definitions.populating_db:
+            import opendf.misc.populate_utils as pop
+            dctx = flt.context
+            pars, alg = pop.parse_agent_txt(dctx.agent_txt)
+            if pars and pars.has_subnode('POS_EV'):
+                fields = pop.get_event_fields(pars, alg)
+                success = pop.create_pop_event(flt, fields)
+        return success
+
+    def populate_update(self, nm):
+        success = False
+        if environment_definitions.populating_db:
+            import opendf.misc.populate_utils as pop
+            dctx = self.context
+            pars, alg = pop.parse_agent_txt(dctx.agent_txt)
+            if pars and pars.has_subnode('POS_EV'):
+                fields = pop.get_event_fields(pars, alg)
+                success = pop.modify_pop_event(self, fields)
+        return success
 
     @staticmethod
     def do_fallback_search(flt, parent, all_nodes=None, goals=None, do_eval=True, params=None):
@@ -889,8 +1016,8 @@ class Event(Node):
     # given a (pruned) tree of constraints, consolidate the tree into one object
     # potentially move this outside of Event, but it is essentially Event logic.
     @staticmethod
-    def create_suggestion(root, parent, avoid_id=None):
-        return Event.get_event_factory().create_event_suggestion(root, parent, avoid_id)
+    def create_suggestion(root, parent, avoid_id=None, prm=None):
+        return Event.get_event_factory().create_event_suggestion(root, parent, avoid_id, prm=prm)
 
     # generate sexp converting this event into a constraint tree, where each input field is converted into
     # a separate Event constraint
@@ -917,13 +1044,45 @@ class Event(Node):
         if 'id' in self.inputs:
             prms.append('id=%s' % id_sexp(self.input_view('id')))
 
-        s = 'AND(' + ','.join(['Event?(%s)' % p for p in prms]) + ')'
+        s = 'AND(' + ','.join(['Event?(%s)' % p for p in prms]) + ')' if prms else 'Event?()'
         return prms if return_prm else s
 
     def to_partialDateTime(self, mode=None):
         nm = 'end' if mode=='end' else 'start'
         dt = self.get_ext_view('slot.'+nm)
         return dt.to_partialDateTime()
+
+    def get_fields(self):
+        subject, slot, duration, attendees, location, id = \
+            self.get_input_views(['subject', 'slot', 'duration', 'attendees', 'location', 'id'])
+        start, end = None, None
+        if slot:
+            start, end = slot.get_input_views(['start', 'end'])
+            # assuming "complete" start/end for now
+            start = start.to_Pdatetime() if start else start
+            end = end.to_Pdatetime() if end else end
+        atts, accepted, showas = [], [], []
+        if attendees:
+            n = attendees.get_op_objects()
+            for i in n:
+                acp, shw = i.get_dats(['response', 'show'])
+                accepted.append(acp)
+                showas.append(shw)
+                p, nm = i.get_input_path('recipient.id')
+                atts.append(p[-1].dat)
+        if location:
+            location = location.dat
+        if subject:
+            subject = subject.dat
+        if id is not None:
+            id = id.dat
+        return id, subject, start, end, location, atts, accepted, showas
+
+    def to_partialDateTime(self, mode=None):
+        nm = 'end' if mode=='end' else 'start'
+        dt = self.get_ext_view('slot.'+nm)
+        return dt.to_partialDateTime()
+
 
 # convert multiple time formats to tree of Event constraints
 #   either one Event?(), or AND(Event?(), Event?()) for ranges

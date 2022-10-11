@@ -72,14 +72,18 @@ def recursive_eval(node, prev_nodes, prev_goals):
     ok = True
     exs = []
     if not node.evaluated:  # TODO: verify not needed!
-        for i in node.inputs:
-            # we evaluate all children - even if one has exception - promote graph development - their
-            #   computations are independent
-            o, e = recursive_eval(node.inputs[i], prev_nodes, prev_goals)
-            ok = ok and o
-            for ee in e:
-                if ee not in exs:
-                    exs.append(ee)
+        keys = list(node.inputs.keys())
+        for i in keys:
+            if i in node.inputs:
+                # we evaluate all children - even if one has exception - promote graph development - their
+                #   computations are independent
+                if not ok and node.stop_eval_on_exception:
+                    break
+                o, e = recursive_eval(node.inputs[i], prev_nodes, prev_goals)
+                ok = ok and o
+                for ee in e:
+                    if ee not in exs:
+                        exs.append(ee)
     if not ok:  # exception(s) in inputs
         ok, exs = node.allows_exception(exs)  # decide: evaluate node despite exception? / raise follow-up exception?
     if not node.evaluated and ok:

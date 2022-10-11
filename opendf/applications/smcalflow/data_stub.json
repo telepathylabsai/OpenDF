@@ -1,0 +1,58 @@
+{
+"db_events": [
+  [1, "meeting1", "WED/9/0", "WED/9/30", 1, [1001, 1004, 1006], ["Accepted", "Accepted", "Declined"], ["Busy", "Busy", "Free"]],
+  [2, "meeting", "THU/9/30", "THU/9/45", 1, [1001, 1006], ["Accepted", "Declined"], ["Busy", "Free"]],
+  [3, "meeting2", "WED/10/0", "WED/10/30", 2, [1002], ["Accepted"], ["Busy"]],
+  [4, "meeting3", "THU/9/0", "THU/10/0", 3, [1001, 1006, 1007], ["Accepted", "Accepted", "Declined"], ["Busy", "Busy", "Free"]],
+  [5, "meeting4", "THU/12/0", "THU/14/0", 3, [1004, 1006, 1007], ["Accepted", "Accepted", "Declined"], ["Busy", "Busy", "Free"]],
+  [6, "meeting5", "FRI/14/30", "FRI/15/0", 2, [1001], ["Declined"], ["Free"]],
+  [7, "meeting6", "FRI/9/0", "FRI/10/0", 3, [1002, 1006], ["Accepted", "Declined"], ["Busy", "Busy"]],
+  [8, "meeting7", "WED/9/30", "WED/12/0", 7, [1003, 1006, 1007], ["Accepted", "Accepted", "Declined"], ["Busy", "Busy", "Free"]],
+  [9, "meeting8", "FRI/16/30", "FRI/17/0", 5, [1005, 1007], ["Accepted", "Declined"], ["Busy", "Free"]],
+  [10, "party", "SUN/10/0", "SUN/10/30", 6, [1004, 1007], ["Accepted", "Declined"], ["Busy", "Busy"]],
+  [11, "meeting", "TUE/10/0", "TUE/10/30", 2, [1006, 1007], ["Accepted", "Declined"], ["Busy", "Busy"]]
+],
+"db_persons": [
+  ["John Doe", "John", "Doe", 1001, "41761231001", "john.doe@opendf.com", 1006, []],
+  ["Jane Doe", "Jane", "Doe", 1002, "41761231002", "jane.doe@opendf.com", 1003, []],
+  ["Jon Smith", "Jon", "Smith", 1003, "41761231003", "jon.smith@opendf.com", 1004, []],
+  ["Jane Smith", "Jane", "Smith", 1004, "41761231004", "jane.smith@opendf.com", 1004, []],
+  ["Jerry Skinner", "Jerry", "Skinner", 1005, "41761231005", "jerry.skinner@opendf.com", 1004, []],
+  ["Dan Smith", "Dan", "Smith", 1006, "41761231006", "dan.smith@opendf.com", 1004, []],
+  ["Adam Smith", "Adam", "Smith", 1007, "41761231007", "adam.smith@opendf.com", 1004, [1001, 1003, 1004]],
+  ["Janice  Kang", "Janice", "Kang", 1008, "41761231007", "Janice.Kang@opendf.com", 1004, [1001, 1003, 1004]],
+  ["Cher  Rob", "Cher", "Rob", 1009, "41761231007", "Cher.Rob@opendf.com", 1004, [1001, 1003, 1004]]
+],
+  "CURRENT_RECIPIENT_ID": 1007,
+  "weather_places": [
+    [0, "online", "", null, null, null, true, true],
+    [1, "room1", "Zurich, Zurich, Switzerland", 47.374444, 8.541111, 20, true, false],
+    [2, "room2", "Zurich, Zurich, Switzerland", 46.947633, 7.404997, 20, true, false],
+    [3, "room3", "Zurich, Zurich, Switzerland", 47.374444, 8.541111, 20, true, false],
+    [4, "room4", "Zurich, Zurich, Switzerland", 46.947633, 7.404997, 20, true, false],
+    [5, "room5", "Zurich, Zurich, Switzerland", 47.374444, 8.541111, 20, true, false],
+    [6, "jeffs", "Bern, Bern, Switzerland", 46.947633, 7.404997, 20, true, false],
+    [7, "zurich", "Z urich, Z urich, Switzerland", 47.374444, 8.541111, 7500, true, false],
+    [8, "bern", "Bern, Bern, Switzerland", 46.947633, 7.404997, 8800, true, false],
+    [9, "tokyo", "Tokyo, Kanto, Japan", 35.701067, 139.75528, 17000, true, false],
+    [10, "barcelona", "Barcelona, Catalonia, Spain", 41.411023, 2.16319, 5700, true, false],
+    [11, "letzipark", "", 47.386596, 8.49943, 80, false, false],
+    [12, "home", "Bahnhofstrasse 1, 8001 Zurich, Zurich, Switzerland", 47.367436, 8.539832, 30, false, false]
+  ],
+  "place_has_features": {
+    "6": ["HappyHour"]
+  },
+  "CURRENT_RECIPIENT_LOCATION_ID": 7,
+  "HOLIDAYS": [
+    [1, 1, "NewYearsDay"],
+    [5, 1, "TestDay"],
+    [25, 12, "Christmas"],
+    [31, 12, "NewYearsEve"]
+  ],
+  "WEATHER_TABLE": {
+    "47.374444_8.541111": ["zurich", [[-2, "snow"], [0, "cloud"], [5, "rain"], [7, "storm"], [10, "wind"], [10, "clear"], [0, "sleet"]]],
+    "46.947633_7.404997": ["bern", [[-5, "clear"], [-2, "cloud"], [0, "snow"], [4, "rain"], [4, "rain"], [5, "cloud"], [0, "clear"]]],
+    "35.701067_139.75528": ["tokyo", [[-8, "snow"], [-6, "cloud"], [-6, "snow"], [0, "cloud"], [-2, "clear"], [0, "rain"], [2, "rain"]]],
+    "41.411023_2.16319": ["barcelona", [[13, "rain"], [17, "rain"], [18, "clear"], [20, "clear"], [18, "cloud"], [17, "rain"], [21, "clear"]]]
+  }
+}

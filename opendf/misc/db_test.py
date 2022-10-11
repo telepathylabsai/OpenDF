@@ -3,15 +3,17 @@ Database Test.
 """
 import logging
 import time
+import traceback
+from datetime import datetime
 
 import sqlalchemy
 from sqlalchemy import select
 
 from opendf.applications.smcalflow.database import Database, populate_stub_database
+from opendf.applications.smcalflow.domain import DBevent, DBPerson, WeatherPlace
 from opendf.utils.database_utils import DATABASE_SYSTEM
 
 # init type info
-from opendf.applications.smcalflow.stub_data import dFri, dThu
 from opendf.applications.smcalflow.fill_type_info import fill_type_info
 from opendf.graph.node_factory import NodeFactory
 from opendf.defs import use_database, database_connection, config_log
@@ -33,8 +35,24 @@ def main():
         if use_database:
             database = Database.get_instance()
         else:
-            database = Database(database_connection)
-        populate_stub_database()
+            # database = Database(database_connection)
+            database = Database("sqlite+pysqlite:///tmp/test.db")
+        populate_stub_database("opendf/applications/smcalflow/data_stub.json")
+
+        new_meeting = DBevent(
+            0, "new meeting", datetime(2022, 8, 22, 10, 0, 0),
+            datetime(2022, 8, 22, 11, 0, 0), "new location", [1007],
+            ["Accepted"], ["Busy"])
+        result = database.add_db_event(new_meeting)
+        result_del = database.delete_db_event(2)
+
+        new_person = DBPerson("Ben Doe", "Ben", "Doe", 1, "41761230000", "bruce.wayne@opendf.com", 1001, [1004, 1007])
+        result = database.add_db_person(new_person)
+        result_del = database.delete_db_person(1008)
+
+        new_place = WeatherPlace(1, "Berlin", "Berlin, Germany", 0.1, 0.2, 50000, True, False)
+        result = database.add_db_place(new_place)
+        result_del = database.delete_db_place(8)
 
         logger.info(database_connection)
         logger.info(DATABASE_SYSTEM)
@@ -71,8 +89,8 @@ def main():
         #                     database.get_time_overlap_events(dThu + "9/00", dFri + "23/00", [1001, 1006, 1007]))))
         # print("\n".join(map(lambda x: str(x),
         #                     database.get_location_overlap_events("room3", dThu + "9/00", dFri + "20/00"))))
-        logger.info(database.is_recipient_free(1001, dThu + "9/00", dFri + "20/00", 6))
-        logger.info(database.is_location_free("room3", dFri + "9/00", dFri + "20/00", 7))
+        # logger.info(database.is_recipient_free(1001, dThu + "9/00", dFri + "20/00", 6))
+        # logger.info(database.is_location_free("room3", dFri + "9/00", dFri + "20/00", 7))
         logger.info('')
 
         # earliest = datetime.strptime("2022-01-01 00:00", "%Y-%m-%d %H:%M")
@@ -119,6 +137,6 @@ if __name__ == '__main__':
         end = time.time()
         logger.info(f"{end - start:.3f}s")
     except:
-        pass
+        traceback.print_exc()
     finally:
         logging.shutdown()

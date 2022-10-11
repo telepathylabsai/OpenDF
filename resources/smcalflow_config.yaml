@@ -1,0 +1,4 @@
+environment_class: !!python/object:opendf.applications.SMCalFlowEnvironment
+  d_context: null
+  simplification: false
+  stub_data_file: 'opendf/applications/smcalflow/data_stub.json'

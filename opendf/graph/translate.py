@@ -4,7 +4,7 @@ Functions to translate user text to S-expressions.
 
 from opendf.examples.text_examples import dialogs, nlu_results
 from opendf.exceptions.python_exception import EvaluationError
-from opendf.graph.nlu_framework import NLU_INTENT, NLU_TREE, nlu_out, NLU
+from opendf.graph.nlu_framework import NLU_TYPE, nlu_out, NLU
 from opendf.graph.nodes.node import *
 from opendf.graph.node_factory import NodeFactory
 from opendf.utils.utils import parse_hint, to_list
@@ -75,14 +75,14 @@ def process_user_txt(txt, d_context):
             if ':' in n:
                 s = n.split(':')
                 nm, v = s[0], s[1:]
-            nl.append(nlu_out(NLU_INTENT, nm, v))
+            nl.append(nlu_out(NLU_TYPE.NLU_INTENT, nm, v))
     if 'entity' in nlu:
         for n in nlu['intent']:
-            nl.append(nlu_out(NLU_SLOT, n, nlu['intent'][n]))
+            nl.append(nlu_out(NLU_TYPE.NLU_SLOT, n, nlu['intent'][n]))
     if 'tree' in nlu:
         for n in to_list(nlu['intent']):
             nm = n.split('(')[0]
-            nl.append(nlu_out(NLU_TREE, nm, n))
+            nl.append(nlu_out(NLU_TYPE.NLU_TREE, nm, n))
 
     return nlu_to_sexp(nl, d_context)
 
@@ -169,7 +169,7 @@ def nlu_to_sexp(nlu, d_context):
     # 1. translate intents
     #  consumes translated intents, and may also greedily consume related entities (slots/trees)
     for i, n in enumerate(nlu):
-        if n.typ == NLU_INTENT and not n.consumed:
+        if n.typ == NLU_TYPE.NLU_INTENT and not n.consumed:
             if n.name in intent_hints:
                 tp = intent_hints[n.name]
                 if tp in node_fact.sample_nodes:
@@ -186,12 +186,12 @@ def nlu_to_sexp(nlu, d_context):
     # 2. try to consume slots/trees corresponding to prev_hints
     if prev_hints:
         s = ' '
-        while s and nlu.has_unconsumed(NLU_SLOT):
+        while s and nlu.has_unconsumed(NLU_TYPE.NLU_SLOT):
             s, nlu = translate_slot_hints(nlu, prev_hints)
             if s:
                 sexps.extend(to_list(s))
         s = ' '
-        while s and nlu.has_unconsumed(NLU_TREE):
+        while s and nlu.has_unconsumed(NLU_TYPE.NLU_TREE):
             s, nlu = translate_tree_hints(nlu, prev_hints)
             if s:
                 sexps.extend(to_list(s))
@@ -206,12 +206,12 @@ def nlu_to_sexp(nlu, d_context):
                 def_hints = []
                 logger.info('No default entity hint for %s', e.name)
             s = ' '
-            if e.typ == NLU_SLOT:
+            if e.typ == NLU_TYPE.NLU_SLOT:
                 while def_hints and s:
                     s, nlu = translate_slot_hints(nlu, def_hints, i)
                     if s:
                         sexps.extend(to_list(s))
-            elif e.typ == NLU_TREE:
+            elif e.typ == NLU_TYPE.NLU_TREE:
                 while def_hints and s:
                     s, nlu = translate_tree_hints(nlu, def_hints, i)
                     if s:

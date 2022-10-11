@@ -25,7 +25,7 @@ working_dir = '../../analyze'
 node_fact = NodeFactory.get_instance()
 d_context = DialogContext()
 d_context.suppress_exceptions = True  # avoid exit
-d_context.show_print = False  # supress construct printouts
+#d_context.show_print = False  # supress construct printouts
 
 environment_definitions = EnvironmentDefinition.get_instance()
 
@@ -68,13 +68,10 @@ def compare_trees(working_dir):
                 tgold, exg = construct_graph(gold, d_context, constr_tag=OUTLINE_SIMP, no_post_check=True, no_exit=True)
                 thypo, exh = construct_graph(hypo, d_context, constr_tag=OUTLINE_SIMP, no_post_check=True, no_exit=True)
 
-                if 'Scarlet' in gold:
-                    x = 1
-
                 try:
                     diffs = tgold.compare_tree(thypo, [])
                 except:
-                    x = 1
+                    pass
                 if not diffs:
                     n_equiv += 1
 
@@ -82,9 +79,6 @@ def compare_trees(working_dir):
                 n_except += 1
                 if mismatched_parens(hypo):
                     n_mismatch += 1
-                else:
-                    x = 1
-            x = 1
 
     logger.info(
         ' n_dialogs = %d\n n_exact   = %d \n n_equiv   = %d \n ->  %.3f (%.3f) \n\n n_except=%d \n n_mismatch=%d ',

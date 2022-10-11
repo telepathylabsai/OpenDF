@@ -11,7 +11,7 @@ import re
 from graphviz import Digraph
 from opendf.defs import *
 from opendf.graph.node_factory import NodeFactory
-
+from opendf.utils.utils import to_list
 
 logger = logging.getLogger(__name__)
 
@@ -64,7 +64,8 @@ def split_sexp(s):
     return "<" + '<BR ALIGN="LEFT"/>'.join(t) + '>'
 
 
-def gen_err_msg(s, w=20, hints=None, sugg=None, fnt_sz=15):
+def gen_err_msg(ss, w=20, hints=None, sugg=None, fnt_sz=15):
+    s = fix_chars(ss)
     msg = ''
     c = ''
     for j in s.split():
@@ -80,7 +81,7 @@ def gen_err_msg(s, w=20, hints=None, sugg=None, fnt_sz=15):
     if len(c) > 0:
         msg = msg + c
     if environment_definitions.show_hints and hints:
-        msg = msg + '<BR/>{' + ','.join(['<BR/>'.join([i for j in hints for i in split_len(j, 40)])]) + '}'
+        msg = msg + '<BR/>{' + ','.join(['<BR/>'.join([i for j in to_list(hints) for i in split_len(str(j), 40)])]) + '}'
     if environment_definitions.show_sugg and sugg:
         msg = msg + '<BR/><BR/>Suggestions:<BR/>' + \
               ','.join(['<BR/>'.join([i for j in sugg for i in split_len(j, 40)])]) + '<BR/>'
@@ -88,6 +89,8 @@ def gen_err_msg(s, w=20, hints=None, sugg=None, fnt_sz=15):
     ms = msg.strip()
     if MSG_COL in ms and len(ms) == len(MSG_COL) + 7:  # problem with empty message - add space
         ms += ' '
+    if not ms:
+        ms = ' ? '
     return "< <font point-size='%d'>" % fnt_sz + ms + '</font> >'
 
 
@@ -136,7 +139,7 @@ def get_lab_name(s, nd):
             tg.append('|')
     if nd.hide:  # show also for constraints
         ptg.append('/')
-    if nd.constr_obj_view == VIEW_INT:
+    if nd.constr_obj_view == VIEW.INT:
         ptg.append(CHAR_LT)  # '<'
     stg = "<font point-size='10'><sup>%s</sup></font>" % ','.join(tg) if tg else ''
     sptg = "<font point-size='12'><sup>%s</sup></font>" % ','.join(ptg) if ptg else ''
@@ -160,8 +163,10 @@ def saturate(c, fact=None):
         return c
 
 
+# TODO: do we still need this?
 def reform_msg(s):
-    return 'summarize' + re.sub('_NL_', '/', re.sub(' ', '_', re.sub(',', '-', re.sub(':', CHAR_COLON, re.sub('&', CHAR_AND, s)))))
+    return 'summarize' + re.sub('_NL_', '/',
+                                re.sub(' ', '_', re.sub(',', '-', re.sub(':', CHAR_COLON, re.sub('&', CHAR_AND, s)))))
 
 
 def strip_col(s, col):
@@ -188,9 +193,12 @@ def db_internal(n):
 
 def do_draw_graph(ff, node_names, goals, excp=None, mesg=None, id_off=0, subgraphs=None):
     excp = excp if excp else []
-    ex_nodes = {parse_node_exception(e)[1]: ('ExceptionNode##%d' % i, gen_exc_msg(e)) for (i, e) in enumerate(excp)}
+    ex_nodes = [(parse_node_exception(e)[1], 'ExceptionNode##%d' % i, gen_exc_msg(e)) for (i, e) in enumerate(excp)]
+    if ex_nodes and environment_definitions.show_last_exc_per_node:
+        ex_nodes = list({x[0]:x for x in ex_nodes}.values())
     mesg = mesg if mesg else []
-    msg_nodes = {n: ('MessageNode##%d' % i, gen_err_msg(m, fnt_sz=20)) for (i, (n, m)) in enumerate(mesg)}
+    #msg_nodes = {n: ('MessageNode##%d' % i, gen_err_msg(m, fnt_sz=20)) for (i, (n, m)) in enumerate(mesg)}
+    msg_nodes = {m.node: ('MessageNode##%d' % i, gen_err_msg(m.text, fnt_sz=20)) for (i, m) in enumerate(mesg)}
     expln = None
     if excp:
         msg, nd, _, _ = parse_node_exception(excp[-1])
@@ -215,10 +223,10 @@ def do_draw_graph(ff, node_names, goals, excp=None, mesg=None, id_off=0, subgrap
     f = ff
     fntsz = ''
     # nodes
-    for n in ex_nodes:  # add an error message pointing at node where it occurred
-        mm, col = strip_col(ex_nodes[n][1], '#ff6666')
+    for xnd, xnm, xmsg in ex_nodes:
+        mm, col = strip_col(xmsg, '#ff6666')
         f.attr('node', shape='ellipse', style='filled', color=col, fontcolor='', fillcolor='')
-        f.node(ex_nodes[n][0], label=mm)
+        f.node(xnm, label=mm)
     if expln and environment_definitions.show_explain:
         mm, col = strip_col(expln, '#66ff66')
         f.attr('node', shape='rectangle', style='filled', color=col, fontcolor='', fillcolor='')
@@ -229,7 +237,7 @@ def do_draw_graph(ff, node_names, goals, excp=None, mesg=None, id_off=0, subgrap
         f.node(msg_nodes[n][0], label=mm)
 
     if not environment_definitions.sep_graphs or not subgraphs:
-        subgraphs = [list(node_names.keys())] + [list(ex_nodes.values())] + [list(msg_nodes.values())]
+        subgraphs = [list(node_names.keys())] + [ex_nodes] + [list(msg_nodes.values())]
 
     for ig, subg in enumerate(subgraphs):
         with ff.subgraph(name='cluster_%d' % ig) as f:
@@ -273,6 +281,7 @@ def do_draw_graph(ff, node_names, goals, excp=None, mesg=None, id_off=0, subgrap
                 for i, g in enumerate(goals):  # add numbered circles pointing to goals
                     if g in subg:
                         col = '#ffffcc' if g.typename() == 'revise' else '#ffff00'
+                        col = '#ccffff' if g in g.context.other_goals else col
                         col = saturate(col)
                         f.attr('node', shape='circle', style='filled', color=col, fontsize='20.0', fontcolor='',
                                fillcolor='')
@@ -288,15 +297,15 @@ def do_draw_graph(ff, node_names, goals, excp=None, mesg=None, id_off=0, subgrap
                             f.attr('edge', color=cl, style='', arrowhead='', fontsize=fntsz, fontcolor=cl, fillcolor='')
                             f.edge('tagXXX%d' % i, node_names[n])
                             i += 1
-            for n in ex_nodes:  # add edge for error messages
-                if n in subg:
+            for xnd, xnm, xmsg in ex_nodes:  # add edge for error messages
+                if xnd in subg:
                     f.attr('edge', color=saturate('#ff6666'), fontsize='8.0')
-                    f.edge(node_names[n], ex_nodes[n][0])
-            if expln and environment_definitions.show_explain:
-                n = [k for k in ex_nodes][-1]
-                if n in subg:
+                    f.edge(node_names[xnd], xnm)
+            if expln and environment_definitions.show_explain and ex_nodes:
+                xnd, xnm, xmsg = ex_nodes[-1]
+                if xnd in subg:
                     f.attr('edge', color=saturate('#ff6666'), fontsize='8.0')
-                    f.edge(node_names[n], 'explain_node')
+                    f.edge(node_names[xnd], 'explain_node')
             for n in msg_nodes:  # add edge for error messages
                 if n in subg:
                     f.attr('edge', color=saturate('#aaaaff'), fontsize='8.0')
@@ -316,7 +325,7 @@ def do_draw_graph(ff, node_names, goals, excp=None, mesg=None, id_off=0, subgrap
                     lab = '' if lab == posname(1) and posname(2) not in n.inputs else lab
                     if environment_definitions.show_view:
                         lab = lab + "<font point-size='9'><sub>%s</sub></font>" % (
-                            'i' if n.view_mode[nm] == VIEW_INT else 'e')
+                            'i' if n.view_mode[nm] == VIEW.INT else 'e')
                     if environment_definitions.show_prm_tags and nm in n.signature and n.signature[nm].prmtags:
                         lab = lab + "<font point-size='10'><sup>%s</sup></font>" % ','.join(n.signature[nm].prmtags)
                     lab = '<' + lab + '>' if lab else lab
@@ -339,7 +348,7 @@ def do_draw_graph(ff, node_names, goals, excp=None, mesg=None, id_off=0, subgrap
 
     if environment_definitions.show_goal_id:
         for i, g in enumerate(goals):  # add numbered circles pointing to goals
-            f.attr('edge', color=saturate('#cccc00'), style='', arrowhead='none', fontsize=fntsz, fontcolor='',
+            f.attr('edge', color=saturate('#00cccc'), style='', arrowhead='none', fontsize=fntsz, fontcolor='',
                    fillcolor='')
             f.edge(node_names[g], '##' + str(i + 1 + id_off))
             if environment_definitions.show_goal_link and i > 0:
@@ -348,7 +357,7 @@ def do_draw_graph(ff, node_names, goals, excp=None, mesg=None, id_off=0, subgrap
                 f.edge('##' + str(i + id_off), '##' + str(i + 1 + id_off))
 
 
-def draw_graphs(goals, ex, msg, id=0, ok=True, sexp=None, txt=None, simp=None):
+def draw_graphs(goals, ex, msg, id=0, ok=True, sexp=None, txt=None, simp=None, f=None):
     hide_extra = node_fact.leaf_types if environment_definitions.hide_extra_base else []
     id_off = 0
     if environment_definitions.show_only_n > 0:
@@ -374,12 +383,13 @@ def draw_graphs(goals, ex, msg, id=0, ok=True, sexp=None, txt=None, simp=None):
         for n in nodes:
             if n.typename() in environment_definitions.summarize_typenames:
                 node_names[n] = reform_msg('%s=' % str(n.id) + n.describe_set(params=['compact']))
-    f = Digraph('Graph', filename='tmp/graph.gv')
+    f = Digraph('Graph', filename='tmp/graph.gv') if f is None else f
     dir = 'BT' if environment_definitions.draw_vert else 'LR'
     f.attr(rankdir=dir, size='8,5', ranksep="0.02")
     f.attr('node', shape='rectangle')
     exc = [e for e in ex if parse_node_exception(e)[1] in nodes] if ex else []
-    mesg = [(n, m) for (n, m) in msg if n in nodes] if msg else []
+    # mesg = [(n, m) for (n, m) in msg if n in nodes] if msg else []
+    mesg = [m for m in msg if m.node in nodes] if msg else []
 
     if environment_definitions.show_nodes:
         do_draw_graph(f, node_names, goals, exc, mesg, id_off, subgraphs)
@@ -424,4 +434,5 @@ def draw_graphs(goals, ex, msg, id=0, ok=True, sexp=None, txt=None, simp=None):
 
 
 def draw_all_graphs(d_context, id=0, ok=True, sexp=None, txt=None, simp=None):
-    draw_graphs(d_context.goals, d_context.exceptions, d_context.messages, id, ok, sexp, txt, simp)
+    gls = d_context.goals + d_context.other_goals if environment_definitions.show_other_goals else d_context.goals
+    draw_graphs(gls, d_context.exceptions, d_context.messages, id, ok, sexp, txt, simp)

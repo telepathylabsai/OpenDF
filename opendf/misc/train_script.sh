@@ -29,7 +29,7 @@ for subset in "train" "valid"; do
         --num_context_turns 2 \
         --include_program \
         --include_described_entities \
-		--simplify_format \
+		    --simplify_format \
         --onmt_text_data_outbase ${onmt_text_data_dir}/${subset}
 done
 

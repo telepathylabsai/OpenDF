@@ -3,16 +3,13 @@ The main entry point to run the dataflow graphs.
 """
 import argparse
 import time
+import yaml
 
-from opendf.applications.smcalflow.database import Database, populate_stub_database
-from opendf.applications.smcalflow.domain import fill_graph_db
-
+from opendf.applications import EnvironmentClass
 from opendf.examples.main_examples import dialogs
 from opendf.graph.constr_graph import construct_graph, check_constr_graph
 from opendf.graph.eval import evaluate_graph, check_dangling_nodes
 from opendf.graph.draw_graph import draw_all_graphs
-from opendf.applications.smcalflow.fill_type_info import fill_type_info
-from opendf.graph.node_factory import NodeFactory
 from opendf.defs import *
 from opendf.graph.dialog_context import DialogContext
 from opendf.utils.arg_utils import add_environment_option
@@ -27,11 +24,7 @@ from opendf.utils.simplify_exp import indent_sexp
 # input is taken from dialogs in opendf.examples.main_examples
 
 logger = logging.getLogger(__name__)
-
-# init type info
-node_fact = NodeFactory.get_instance()
 environment_definitions = EnvironmentDefinition.get_instance()
-fill_type_info(node_fact)
 
 
 def create_arguments_parser():
@@ -48,6 +41,11 @@ def create_arguments_parser():
     )
 
     parser.add_argument(
+        "--config", "-c", metavar="config", type=str, required=False, default="resources/smcalflow_config.yaml",
+        help="the configuration file for the application"
+    )
+
+    parser.add_argument(
         "--dialog_id", "-d", metavar="dialog_id", type=int, required=False, default=0,
         help="the dialog id to use. "
              "This should be the index of a dialog defined in the `opendf/examples/main_examples.py` file"
@@ -60,7 +58,8 @@ def create_arguments_parser():
 
     parser.add_argument(
         "--output", "-o", metavar="output", type=str, required=False, default=None,
-        help="Serializes the context of the graph to the given filepath"
+        help="Serializes the context of the graph to the given filepath. "
+             "If the extension of the file is .bz2, it will be compressed"
     )
 
     parser.add_argument(
@@ -129,12 +128,9 @@ def dialog(dialog_id, d_context, draw_graph=True):
         psexp = isexp
         igl, ex = construct_graph(isexp, d_context, constr_tag=OUTLINE_SIMP, no_post_check=True)
 
-        gl, ex = trans_graph(igl)  # for drawing without yield
-
-        check_constr_graph(gl)
-
         # apply implicit accept suggestion if needed. This is when prev turn gave suggestions, and one of them was
         #   marked as implicit-accept (SUGG_IMPL_AGR) (i.e. apply it if the user moves to another topic without accept or reject)
+        # do this BEFORE trans_simple - since trans_simple may look at context.goals  (e.g. for side_task)
         if d_context.prev_sugg_act:
             j = [s[2:] for s in d_context.prev_sugg_act if s.startswith(SUGG_IMPL_AGR)]
             if j and not isexp.startswith('AcceptSuggestion') and not isexp.startswith('RejectSuggestion'):
@@ -148,6 +144,10 @@ def dialog(dialog_id, d_context, draw_graph=True):
                         evaluate_graph(gl0)
                         if ms:
                             d_context.add_message(gl0, ms)
+
+        gl, ex = trans_graph(igl)  # for drawing without yield
+
+        check_constr_graph(gl)
 
         # 3. evaluate graph
         if ex is None:
@@ -179,29 +179,27 @@ def dialog(dialog_id, d_context, draw_graph=True):
     return gl, ex
 
 
-def main(dialog_id, draw_graph=True, output_path=None):
-    d_context = DialogContext()
+def main(dialog_id, environment_class: EnvironmentClass, draw_graph=True, output_path=None):
     try:
-        if use_database:
-            populate_stub_database()
-        else:
-            fill_graph_db(d_context)
-        gl, ex = dialog(dialog_id, d_context, draw_graph=draw_graph)
+        d_context = environment_class.get_new_context()
+        environment_class.d_context = d_context
+        with environment_class:
+            gl, ex = dialog(dialog_id, d_context, draw_graph=draw_graph)
 
-        if output_path:
-            # ids = set(sum([g.topological_order() for g in d_context.goals], []))
-            import pickle
-            with open(output_path, 'wb') as output_file:
-                pickle.dump(d_context, output_file)
-        return gl, ex
+            if output_path:
+                from os.path import splitext
+                import pickle
+                _, ext = splitext(output_path)
+                if ext == '.bz2':
+                    import bz2
+                    with bz2.BZ2File(output_path, 'wb') as output_file:
+                        pickle.dump(d_context, output_file)
+                else:
+                    with open(output_path, 'wb') as output_file:
+                        pickle.dump(d_context, output_file)
+            return gl, ex
     except Exception as e:
         raise e
-    finally:
-        if use_database:
-            database = Database.get_instance()
-            if database:
-                database.erase_database()
-        logging.shutdown()
 
 
 if __name__ == "__main__":
@@ -211,14 +209,17 @@ if __name__ == "__main__":
         arguments = parser.parse_args()
         config_log(level=arguments.log)
         id_arg = arguments.dialog_id
+
         if arguments.environment:
             environment_definitions.update_values(**arguments.environment)
+
+        application_config = yaml.load(open(arguments.config, 'r'), Loader=yaml.UnsafeLoader)
 
         if arguments.expression:
             dialogs.append(arguments.expression)
             id_arg = -1
 
-        main(id_arg, output_path=arguments.output)
+        main(id_arg, application_config["environment_class"], output_path=arguments.output)
     except Exception as e:
         raise e
     finally:

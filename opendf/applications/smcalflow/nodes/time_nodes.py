@@ -6,11 +6,12 @@ from sqlalchemy import select
 from opendf.applications.core.nodes.time_nodes import *
 from opendf.applications.smcalflow.database import Database
 from opendf.applications.smcalflow.storage_factory import StorageFactory
-from opendf.defs import get_system_date, posname, get_system_datetime
+from opendf.defs import get_system_date, posname, get_system_datetime, Message
 from opendf.exceptions.df_exception import IncompatibleInputException, InvalidValueException, \
     InvalidResultException, InvalidInputException
 from opendf.applications.smcalflow.exceptions.df_exception import HolidayNotFoundException, MultipleHolidaysFoundException
 from opendf.graph.nodes.framework_operators import LIKE
+from opendf.utils.utils import to_list
 
 storage = StorageFactory.get_instance()
 
@@ -76,7 +77,7 @@ class Period(Node):
             s = d[0]
         else:
             s = ' '.join(d[:-1]) + ' and ' + d[-1]
-        return s
+        return Message(s, objects=['DT#'+s])
 
     def get_period_values(self):
         """
@@ -101,7 +102,7 @@ class Period(Node):
         secs += 60 * mt if mt else 0
         return timedelta(days, secs)
 
-    def to_partialDateTime(self):
+    def to_partialDateTime(self, mode=None):
         yr, mn, wk, dy, hr, mt = self.get_period_values()
         return PartialDateTime(year=yr, month=mn, day=dy, hour=hr, minute=mt)
 
@@ -355,7 +356,7 @@ class Today(Node):
 
     def yield_msg(self, params=None):
         g = self.res
-        return 'Today is %d %s %d' % (g.get_dat('day'), monthname_full[g.get_dat('month') - 1], g.get_dat('year'))
+        return Message('Today is %d %s %d' % (g.get_dat('day'), monthname_full[g.get_dat('month') - 1], g.get_dat('year')))
 
 
 class Tomorrow(Node):
@@ -373,7 +374,7 @@ class Tomorrow(Node):
 
     def yield_msg(self, params=None):
         g = self.res
-        return 'Tomorrow is %d %s %d' % (g.get_dat('day'), monthname_full[g.get_dat('month') - 1], g.get_dat('year'))
+        return Message('Tomorrow is %d %s %d' % (g.get_dat('day'), monthname_full[g.get_dat('month') - 1], g.get_dat('year')))
 
 
 class Yesterday(Node):
@@ -391,7 +392,7 @@ class Yesterday(Node):
 
     def yield_msg(self, params=None):
         g = self.res
-        return 'Yesterday was %d %s %d' % (g.get_dat('day'), monthname_full[g.get_dat('month') - 1], g.get_dat('year'))
+        return Message('Yesterday was %d %s %d' % (g.get_dat('day'), monthname_full[g.get_dat('month') - 1], g.get_dat('year')))
 
 
 class nextDayOfWeek(Node):
@@ -460,7 +461,8 @@ class HolidayYear(Node):
         self.set_result(g)
 
     def yield_msg(self, params=None):
-        return f"{self.get_dat('holiday')} is on {self.res.describe()}"
+        m = self.res.describe()
+        return Message(f"{self.get_dat('holiday')} is on {m.text}", objects=m.objects)
 
 
 class nextHoliday(Node):
@@ -483,7 +485,8 @@ class nextHoliday(Node):
         self.set_result(g)
 
     def yield_msg(self, params=None):
-        return f"{self.get_dat('holiday')} is on {self.res.describe()}"
+        m = self.res.describe()
+        return Message(f"{self.get_dat('holiday')} is on {m.text}", objects=m.objects)
 
 
 class previousHoliday(Node):
@@ -506,7 +509,8 @@ class previousHoliday(Node):
         self.set_result(g)
 
     def yield_msg(self, params=None):
-        return f"{self.get_dat('holiday')} is on {self.res.describe()}"
+        m = self.res.describe()
+        return Message(f"{self.get_dat('holiday')} is on {m.text}", objects=m.objects)
 
 
 class NextHolidayFromToday(Node):
@@ -516,12 +520,16 @@ class NextHolidayFromToday(Node):
         self.signature.add_sig(posname(1), Holiday, True, alias='holiday')
 
     def exec(self, all_nodes=None, goals=None):
-        g, _ = Node.call_construct_eval(f"nextHoliday(Today(), {id_sexp(self.input_view('holiday'))})", self.context)
+        g, _ = Node.call_construct(f"nextHoliday(Today(), {id_sexp(self.input_view('holiday'))})", self.context)
+        self.set_result(g)
+        e = g.call_eval(add_goal=False)
+        if e:
+            raise to_list(e)[-1]
 
-        self.set_result(g.res)
 
     def yield_msg(self, params=None):
-        return f"{self.get_dat('holiday')} is on {self.res.describe()}"
+        m = self.res.describe()
+        return Message(f"{self.get_dat('holiday')} is on {m.text}", objects=m.objects)
 
 
 class WeekendOfDate(Node):
@@ -1782,12 +1790,15 @@ class NextTime(Node):
     # NextTime(3PM) is 3PM today, if now is before 3PM, otherwise - 3PM tomorrow
     def __init__(self):
         super().__init__(DateTime)
-        self.signature.add_sig('time', Time, True)
+        self.signature.add_sig('time', [Time, TimeRange], True)
 
     def exec(self, all_nodes=None, goals=None):
         # get input
         hr, mt = nows_time()
-        hr1, mt1 = self.input_view('time').get_time_values_with_default(hr, mt)
+        tm = self.input_view('time')
+        if tm.typename()=='TimeRange':
+            tm = tm.input_view('start')
+        hr1, mt1 = tm.get_time_values_with_default(hr, mt)
         yr, mn, dy = todays_date()
 
         if hr1 < hr or (hr1 == hr and mt1 < mt):
@@ -1897,3 +1908,28 @@ class ThisWeekEnd(Node):
         sexp = Pdates_to_daterange_sexp(s, e)
         d, e = self.call_construct_eval(sexp, self.context)
         self.set_result(d)
+
+
+# =================================
+
+# these nodes still need to be implemented
+
+class AroundDateTime(Node):
+    def __init__(self):
+        super().__init__(DateTime)
+        #super().__init__(DateTimeRange)
+        self.signature.add_sig(posname(1), DateTime, True, alias='dateTime')
+
+    def exec(self, all_nodes=None, goals=None):
+        dt = self.input_view(posname(1))
+        self.set_result(dt)
+
+class TimeAround(Node):
+    def __init__(self):
+        #super().__init__(TimeRange)
+        super().__init__(Time)
+        self.signature.add_sig(posname(1), Time, True)
+
+    def exec(self, all_nodes=None, goals=None):
+        dt = self.input_view(posname(1))
+        self.set_result(dt)

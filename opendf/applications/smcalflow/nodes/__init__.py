@@ -1,3 +1,3 @@
 """
-Package containing smcalflow nodes.
+Package containing SMCalFlow nodes.
 """

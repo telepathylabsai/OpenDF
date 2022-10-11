@@ -41,7 +41,8 @@ class Here(Node):
         self.set_result(d)
 
     def yield_msg(self, params=None):
-        return f"You are listed to be at {self.res.describe()}"
+        m = self.res.describe()
+        return Message(f"You are listed to be at {m.text}", objects=m.objects)
 
 
 class FindPlaceAtHere(Node):
@@ -56,9 +57,9 @@ class FindPlaceAtHere(Node):
 
     def valid_input(self):
         if not self.input_view('place'):
-            raise MissingValueException('place', self)
+            raise MissingValueException.make_exc('place', self)
         if not self.input_view('radiusConstraint'):
-            raise MissingValueException('radiusConstraint', self)
+            raise MissingValueException.make_exc('radiusConstraint', self)
 
     def exec(self, all_nodes=None, goals=None):
         operator = self.input_view('place')
@@ -174,9 +175,9 @@ class PlaceDescribableLocation(Node):
                 location = f"{latitude}, {longitude}"
 
         if location:
-            return f"{place_name} is located at {location}"
+            return Message(f"{place_name} is located at {location}", objects=['PL#'+place_name, 'PL#'+location])
         else:
-            return f"I cannot find a location for {place_name}"
+            return Message(f"I cannot find a location for {place_name}")
 
 
 class AtPlace(Node):
@@ -216,7 +217,7 @@ class PlaceFeature(Node):
             if feat.lower() not in self.POSSIBLE_VALUES:
                 raise InvalidOptionException(posname(1), feat, self.POSSIBLE_VALUES, self, hints='PlaceFeature')
         else:
-            raise MissingValueException(posname(1), self)
+            raise MissingValueException.make_exc(posname(1), self)
 
 
 class PlaceHasFeature(Node):
@@ -231,9 +232,9 @@ class PlaceHasFeature(Node):
 
     def valid_input(self):
         if not self.input_view('feature'):
-            raise MissingValueException('feature', self)
+            raise MissingValueException.make_exc('feature', self)
         if not self.input_view('place'):
-            raise MissingValueException('place', self)
+            raise MissingValueException.make_exc('place', self)
 
     def exec(self, all_nodes=None, goals=None):
         place = self.input_view('place')
@@ -250,9 +251,9 @@ class PlaceHasFeature(Node):
         place = upper_case_first_letter(self.input_view('place').get_dat('name'))
         feat = self.input_view('feature').get_dat(posname(1))
         if has_feature:
-            return f"{place} is good for {feat}."
+            return Message(f"{place} is good for {feat}.", objects=['PL#'+place, 'FT#'+feat, 'VAL#Yes'])
         else:
-            return f"{place} is not good for {feat}."
+            return Message(f"{place} is not good for {feat}.", objects=['PL#'+place, 'FT#'+feat, 'VAL#No'])
 
 
 # #######################################################################################################
@@ -267,7 +268,7 @@ class WeatherQueryApi(Node):
     def __init__(self):
         super().__init__(WeatherTable)
         self.signature.add_sig('place', [GeoCoords, Place, LocationKeyphrase, Str])
-        self.signature.add_sig('time', [DateTime, Date])
+        self.signature.add_sig('time', [DateTime, Date, DateRange, Time, TimeRange])
         self.signature.add_sig('pos1', Event, alias='event')
 
     def trans_simple(self, top):
@@ -289,7 +290,7 @@ class WeatherQueryApi(Node):
             if 'place' in self.inputs or 'time' in self.inputs:
                 raise IncompatibleInputException('Please, provide either event or (place, time)', self)
         elif not self.input_view('place'):
-            raise MissingValueException('place', self)
+            raise MissingValueException.make_exc('place', self)
 
     def exec(self, all_nodes=None, goals=None):
         place, tm, event = self.get_input_views(['place', 'time', 'event'])
@@ -300,9 +301,11 @@ class WeatherQueryApi(Node):
             place, _ = Node.call_construct_eval(f"AtPlace(place=FindPlace(keyphrase={id_sexp(location)}))", self.context)
             if place:
                 place = place.res
-        latitude = place.get_dat("lat")
-        longitude = place.get_dat("long")
-        wtab = get_weather_prediction(latitude, longitude)
+        coors = place.input_view('coordinates')
+        longitude, latitude = (coors.get_dat("long"), coors.get_dat("lat")) if coors else (None, None)
+
+        _, _, _, _, _, _, _, WEATHER_TABLE = get_stub_data_from_json(self.context.init_stub_file)
+        wtab = get_weather_prediction(latitude, longitude, WEATHER_TABLE)
 
         if not tm:
             tm = event.get_ext_view("slot.start")
@@ -353,11 +356,11 @@ class WeatherAggregate(Node):
 
     def valid_input(self):
         if not self.input_view('property'):
-            raise MissingValueException('property', self)
+            raise MissingValueException.make_exc('property', self)
         if not self.input_view('quantifier'):
-            raise MissingValueException('quantifier', self)
+            raise MissingValueException.make_exc('quantifier', self)
         if not self.input_view('table'):
-            raise MissingValueException('table', self)
+            raise MissingValueException.make_exc('table', self)
 
     def exec(self, all_nodes=None, goals=None):
         w = self.get_dat('table')
@@ -416,7 +419,8 @@ class WeatherAggregate(Node):
         if len(dates) > 1:
             interval = f"from {describe_Pdate(dates[0])} to {describe_Pdate(dates[-1])}"
 
-        return f"The {quant}temperature in {upper_case_first_letter(place)} {interval} is {value:.1f}°C"
+        return Message(f"The {quant}temperature in {upper_case_first_letter(place)} {interval} is {value:.1f}°C",
+                       objects=['PL#'+place, 'VAL#%.1f'%value])
 
 
 class IsCold(Node):
@@ -427,7 +431,7 @@ class IsCold(Node):
     # for now - enough that just one point is "cold"
     def __init__(self):
         super().__init__(Bool)  # Str would allow more detailed answers
-        self.signature.add_sig('table', WeatherTable, True)
+        self.signature.add_sig(posname(1), WeatherTable, True, alias='table')
 
     def exec(self, all_nodes=None, goals=None):
         w = self.get_dat('table')
@@ -448,7 +452,10 @@ class IsCold(Node):
     def yield_msg(self, params=None):
         r = self.res.dat
         location = upper_case_first_letter(self.input_view("table").dat.split("+", 1)[0])
-        return 'Yes, it is cold in %s' % location if r else 'No, it\'s not predicted to be cold in %s' % location
+        if r:
+            return Message('Yes, it is cold in %s' % location, objects=['PL#'+location, 'VAL#Yes'])
+        else:
+            return Message('No, it\'s not predicted to be cold in %s' % location, objects=['PL#'+location, 'VAL#No'])
 
 
 class IsHot(Node):
@@ -480,7 +487,7 @@ class IsHot(Node):
     def yield_msg(self, params=None):
         r = self.res.dat
         location = upper_case_first_letter(self.input_view("table").dat.split("+", 1)[0])
-        return 'Yes, it is hot in %s' % location if r else 'No, it\'s not predicted to be hot in %s' % location
+        return Message('Yes, it is hot in %s' % location if r else 'No, it\'s not predicted to be hot in %s' % location)
 
 
 class IsWeatherCondition(Node):
@@ -507,9 +514,9 @@ class IsWeatherCondition(Node):
     def valid_input(self):
         if not self.input_view('table'):
             if not self.input_view('place'):
-                raise MissingValueException('place', self)
+                raise MissingValueException.make_exc('place', self)
             if not self.input_view('time'):
-                raise MissingValueException('time', self)
+                raise MissingValueException.make_exc('time', self)
             pl, tm = self.input_view('place'), self.input_view('time')
             d, e = self.call_construct_eval('WeatherQueryApi(place=%s,time=%s)' % (id_sexp(pl), id_sexp(tm)), self.context)
             self.add_linked_input('table', d)
@@ -552,9 +559,10 @@ class IsWeatherCondition(Node):
             st = self.condition_times()
             inf = f"{location} {describe_Pdate(st[0][1], ['prep'])}"
         if r:
-            return f"Yes, it is {self.condition_adjective} in %s" % inf
+            return Message(f"Yes, it is {self.condition_adjective} in %s" % inf, objects=['PL#'+location, 'VAL#Yes'])
         else:
-            return f"No, there is no prediction of {self.condition_noun} in %s" % inf
+            return Message(f"No, there is no prediction of {self.condition_noun} in %s" % inf,
+                           objects=['PL#'+location, 'VAL#No'])
 
 
 class IsRainy(IsWeatherCondition):
@@ -937,7 +945,8 @@ class FindRecipients(Node):
 
     # base function - yielding message from top node
     def yield_msg(self, params=None):
-        return 'This is what I could find: NL ' + self.res.describe_set(params=params)
+        m = self.res.describe_set(params=params)
+        return Message('This is what I could find: NL ' + m.text, objects=m.objects)
 
 
 # ####################################################################################################
@@ -1028,7 +1037,8 @@ class FindAttendees(Node):
 
     # base function - yielding message from top node
     def yield_msg(self, params=None):
-        return 'This is what I could find: NL ' + self.res.describe_set(params=params)
+        m = self.res.describe_set(params=params)
+        return Message('This is what I could find: NL ' + m.text, objects=m.objects)
 
 
 # ####################################################################################################
@@ -1052,7 +1062,7 @@ def fields_to_msg(prms, d_context):
                 n = re.sub('\)', '', n)
             n = d_context.get_node(int(n))
             if n:
-                m = n.describe()
+                m = n.describe().text
                 if m:
                     ps.append('%s: %s' % (k, m))
     s = DEBUG_MSG + ' NL '.join(ps)  # mark this to be displayed with message formatting
@@ -1123,9 +1133,9 @@ class DateTimeAndConstraintBetweenEvents(Node):
     def valid_input(self):
         ev1, ev2 = self.get_input_views(['event1', 'event2'])
         if not ev1:
-            raise MissingValueException('event1', self)
+            raise MissingValueException.make_exc('event1', self)
         if not ev2:
-            raise MissingValueException('event2', self)
+            raise MissingValueException.make_exc('event2', self)
         st, en = ev1.get_ext_view('slot.end'), ev2.get_ext_view('slot.start')
         if not st:
             raise InvalidValueException(f"Wrong input for event1 end: {st}", self)
@@ -1279,7 +1289,11 @@ class FindEvents(Node):
         results = Event.do_fallback_search(cp, all_nodes, goals, do_eval=True)  # , params={"without_curr_user": True})
 
         if not results:
-            raise EventNotFoundException(self)
+            if environment_definitions.populating_db:
+                if Event.populate(cp):
+                    results = Event.do_fallback_search(cp, all_nodes, goals, do_eval=True)
+            if not results:
+                raise EventNotFoundException(self)
 
         r = node_fact.make_agg(results)
         r.call_eval(add_goal=False)  # pedantic
@@ -1287,7 +1301,8 @@ class FindEvents(Node):
 
     # base function - yielding message from top node
     def yield_msg(self, params=None):
-        return 'This is what I could find: NL ' + self.res.describe_set(params=params)
+        m = self.res.describe_set(params=params)
+        return Message('This is what I could find: NL ' + m.text, objects=m.objects)
 
     def allows_exception(self, ee):
         e = to_list(ee)[0]
@@ -1353,7 +1368,7 @@ class CreatePreflightEventWrapper(Node):
 
         if environment_definitions.show_dbg_constr:
             d, e = self.call_construct('Dummy()', self.context)
-            d.connect_in_out('tmp', self)
+            d.connect_in_out('tmp', self, force=True)
             self.inputs['tmp'].set_result(cp)
 
         try:
@@ -1386,23 +1401,27 @@ class CreateCommitEventWrapper(Node):
         except Exception as ex:
             re_raise_exc(ex)
 
+        msg = ev.describe()
+        d, o = msg.text, msg.objects
         if not self.get_dat('confirm'):  # first time we visit
             acts = self.sugg_confirm_acts()
             # add a message to the 'reject' suggestion
             acts[0] = acts[0].split(SUGG_MSG)[0] + SUGG_MSG + 'What would you like to change?'
             mm = 'This suggestion clashes with other events. would you like to continue?' if clash \
                 else 'Does this look ok?'
-            raise EventConfirmationException(mm + ' - NL %s' % ev.describe(), self, suggestions=acts)
-        msg = 'Committing event : %s' % ev.describe()
+            raise EventConfirmationException(mm + ' - NL %s' % d, self, suggestions=acts, objects=o)
+        msg = 'Committing event : %s' % d
         logger.debug(msg)
         self.context.add_message(self, msg)
         att, _ = ev.get_attendee_ids()
         current_recipient_id = storage.get_current_recipient_id()
         if current_recipient_id not in att:
             att.append(current_recipient_id)
-        dbev = storage.add_event(ev.get_dat('subject'), datetime_node_to_datetime(ev.get_ext_view('slot.start')),
-                                 datetime_node_to_datetime(ev.get_ext_view('slot.end')), ev.get_dat('location'), att)
-
+        try:
+            dbev = storage.add_event(ev.get_dat('subject'), datetime_node_to_datetime(ev.get_ext_view('slot.start')),
+                                     datetime_node_to_datetime(ev.get_ext_view('slot.end')), ev.get_dat('location'), att)
+        except Exception:
+            raise DFException('Database insertion error', self)
         self.set_result(storage.get_event_graph(dbev.identifier, self.context))
 
 
@@ -1476,7 +1495,7 @@ class UpdatePreflightEventWrapper(Node):
     def valid_input(self):
         constr = self.input_view('constraint')
         if not constr:
-            raise MissingValueException('constrain', self, message='What changes would you like to make to this event?')
+            raise MissingValueException.make_exc('constrain', self, message='What changes would you like to make to this event?')
 
     # the way it works:
     # after the target event is found, it is converted into an event constraint tree, and is input to 'event'
@@ -1489,8 +1508,10 @@ class UpdatePreflightEventWrapper(Node):
         ev = self.input_view('event')  # at this point in the evaluation, a constraint tree representing one event
         constr = self.input_view('constraint')
         if not constr:
+            msg = ev.describe()
+            d, o = msg.text, msg.objects
             raise InvalidResultException(
-                "Please specify the change you would like to make to the following event: %s" % ev.describe(), self)
+                "Please specify the change you would like to make to the following event: %s" % d, self, objects=o)
 
         s = ev.event_ctree_str()
         evcp, _ = self.call_construct_eval(s, self.context)
@@ -1524,7 +1545,8 @@ class UpdatePreflightEventWrapper(Node):
                              allow_clash=True)  # verify that the event is possible  - no clashes ...
         except Exception as ex:
             re_raise_exc(ex, node=self)
-        ev.inputs["id"].connect_in_out("id", d)
+        if 'id' in ev.inputs:
+            ev.input_view("id").connect_in_out("id", d)
 
 
 class UpdateCommitEventWrapper(Node):
@@ -1546,6 +1568,8 @@ class UpdateCommitEventWrapper(Node):
         except Exception as ex:
             re_raise_exc(ex)
 
+        msg = ev.describe()
+        d, o = msg.text, msg.objects
         if self.get_dat('confirm') != True:
             # TODO: if we keep the original event id, then we could compare to it and highlight what has changed
             # e.g. "meeting with John, at 10 instead of 9"
@@ -1554,8 +1578,8 @@ class UpdateCommitEventWrapper(Node):
             #    give message and do nothing
             mm = 'This suggestion clashes with other events. would you like to continue?' if clash \
                 else 'Does this look ok?'
-            raise EventConfirmationException(mm + ' - NL %s' % ev.describe(), self, suggestions=acts)
-        msg = 'Committing event : %s' % ev.describe()
+            raise EventConfirmationException(mm + ' - NL %s' % d, self, suggestions=acts, objects=o)
+        msg = 'Committing event : %s' % d
         logger.debug(msg)
         self.context.add_message(self, msg)
         att, _ = ev.get_attendee_ids()
@@ -1604,7 +1628,7 @@ class UpdateEvent(Node):
         return n, None
 
     def yield_msg(self, params=None):
-        return 'I\'ve put that on your calendar.'
+        return Message('I\'ve put that on your calendar.')
 
 
 # ####################################################################################################
@@ -1622,11 +1646,13 @@ class DeleteCommitEventWrapper(Node):
 
     def exec(self, all_nodes=None, goals=None):
         ev = self.input_view('sugg')
+        msg = ev.describe()
+        d, o = msg.text, msg.objects
         if self.get_dat('confirm') != True:
             acts = self.sugg_confirm_acts()
             acts[0] += SUGG_MSG + 'OK - the event will not be deleted'  # instead of/in addition to rerun -
             #    give message and do nothing
-            raise EventConfirmationException('Really delete this event? NL %s' % ev.describe(), self, suggestions=acts)
+            raise EventConfirmationException('Really delete this event? NL %s' % d, self, suggestions=acts, objects=o)
         if not ev or not ev.is_complete():
             raise BadEventDeletionException('Error - trying to delete an invalid event', self)
 
@@ -1640,8 +1666,9 @@ class DeleteCommitEventWrapper(Node):
         if deleted_event is None:
             raise BadEventDeletionException('Error - Event has changed in the database - not deleting', self)
 
-        msg = 'The event "%s" which was supposed to take place %s has been deleted' % \
-              (ev.get_dat('subject'), ev.get_ext_view('slot.start').describe(params=['add_prep']))
+        msg = ev.get_ext_view('slot.start').describe(params=['add_prep'])
+        d, o = msg.text, msg.objects
+        msg = 'The event "%s" which was supposed to take place %s has been deleted' % (ev.get_dat('subject'), d)
         logger.debug(msg)
         self.context.add_message(self, msg)
 
@@ -1679,121 +1706,121 @@ class DeleteEvent(Node):
 class FenceAggregation(Node):
 
     def yield_msg(self, params=None):
-        return "Sorry, I can't handle complex aggregation requests."
+        return Message("Sorry, I can't handle complex aggregation requests.")
 
 
 class FenceAttendee(Node):
 
     def yield_msg(self, params=None):
-        return "Sorry, I can't handle complex attendee requests."
+        return Message("Sorry, I can't handle complex attendee requests.")
 
 
 class FenceComparison(Node):
 
     def yield_msg(self, params=None):
-        return "Sorry, I can't handle complex comparison requests."
+        return Message("Sorry, I can't handle complex comparison requests.")
 
 
 class FenceConditional(Node):
 
     def yield_msg(self, params=None):
-        return "Sorry, I can't handle complex conditional requests."
+        return Message("Sorry, I can't handle complex conditional requests.")
 
 
 class FenceConferenceRoom(Node):
 
     def yield_msg(self, params=None):
-        return "Sorry, I can't handle complex room requests."
+        return Message("Sorry, I can't handle complex room requests.")
 
 
 class FenceDateTime(Node):
 
     def yield_msg(self, params=None):
-        return "Sorry, I can't handle complex date and time requests."
+        return Message("Sorry, I can't handle complex date and time requests.")
 
 
 class FenceGibberish(Node):
 
     def yield_msg(self, params=None):
-        return "I didn't understand, could you rephrase it?"
+        return Message("I didn't understand, could you rephrase it?")
 
 
 class FenceMultiAction(Node):
 
     def yield_msg(self, params=None):
-        return "Sorry, I can't handle complex multi-action requests."
+        return Message("Sorry, I can't handle complex multi-action requests.")
 
 
 class FenceNavigation(Node):
 
     def yield_msg(self, params=None):
-        return "Sorry, I can't handle navigation requests."
+        return Message("Sorry, I can't handle navigation requests.")
 
 
 class FenceOther(Node):
 
     def yield_msg(self, params=None):
-        return "Sorry, I can't handle this request."
+        return Message("Sorry, I can't handle this request.")
 
 
 class FencePeopleQa(Node):
 
     def yield_msg(self, params=None):
-        return "Sorry, I can't handle questions about people."
+        return Message("Sorry, I can't handle questions about people.")
 
 
 class FencePlaces(Node):
 
     def yield_msg(self, params=None):
-        return "Sorry, I can't handle complex place requests."
+        return Message("Sorry, I can't handle complex place requests.")
 
 
 class FenceRecurring(Node):
 
     def yield_msg(self, params=None):
-        return "Sorry, I can't handle recurring event requests."
+        return Message("Sorry, I can't handle recurring event requests.")
 
 
 class FenceReminder(Node):
 
     def yield_msg(self, params=None):
-        return "Sorry, I can't handle reminder requests."
+        return Message("Sorry, I can't handle reminder requests.")
 
 
 class FenceScope(Node):
 
     def yield_msg(self, params=None):
-        return "Sorry, I can't handle this type of request."
+        return Message("Sorry, I can't handle this type of request.")
 
 
 class FenceSpecify(Node):
 
     def yield_msg(self, params=None):
-        return "Could you be more specific?"
+        return Message("Could you be more specific?")
 
 
 class FenceSwitchTabs(Node):
 
     def yield_msg(self, params=None):
-        return "Sorry, I can't handle this type of request."
+        return Message("Sorry, I can't handle this type of request.")
 
 
 class FenceTeams(Node):
 
     def yield_msg(self, params=None):
-        return "Sorry, I can't handle this type of request."
+        return Message("Sorry, I can't handle this type of request.")
 
 
 class FenceTriviaQa(Node):
 
     def yield_msg(self, params=None):
-        return "Sorry, I can't answer that."
+        return Message("Sorry, I can't answer that.")
 
 
 class FenceWeather(Node):
 
     def yield_msg(self, params=None):
-        return "Sorry, I don't have this information."
+        return Message("Sorry, I don't have this information.")
 
 
 # ####################################################################################################
@@ -1802,22 +1829,22 @@ class FenceWeather(Node):
 class GenericPleasantry(Node):
 
     def yield_msg(self, params=None):
-        return "I can help you with your calender or answer questions about the weather."
+        return Message("I can help you with your calender or answer questions about the weather.")
 
 
 class PleasantryAnythingElseCombined(Node):
 
     def yield_msg(self, params=None):
-        return "Is there something else I can do for you?"
+        return Message("Is there something else I can do for you?")
 
 
 class PleasantryCalendar(Node):
 
     def yield_msg(self, params=None):
-        return "I can help you with your calendar"
+        return Message("I can help you with your calendar")
 
 
 class WeatherPleasantry(Node):
 
     def yield_msg(self, params=None):
-        return "I can answer questions about the weather."
+        return Message("I can answer questions about the weather.")

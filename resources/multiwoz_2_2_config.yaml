@@ -1,0 +1,5 @@
+environment_class: !!python/object:opendf.applications.MultiWOZEnvironment_2_2
+  d_context: null
+  data_path: "resources/multiwoz"
+  domains: null
+  clean_database: false

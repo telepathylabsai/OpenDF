@@ -22,10 +22,10 @@ logger = logging.getLogger(__name__)
 
 node_fact = NodeFactory.get_instance()
 
-NO_YIELD = ['revise', 'AcceptSuggestion', 'RejectSuggestion', 'MODE', 'TEE', 'ModifyEventRequest']
+NO_YIELD = ['revise', 'refer', 'AcceptSuggestion', 'RejectSuggestion', 'MODE', 'TEE', 'ModifyEventRequest']
 
 
-def trans_graph(nd, add_yield=True):
+def trans_graph(nd, add_yield=False):
     """
     Recursive, top down, in place transformation of a simple graph.
     """

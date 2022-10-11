@@ -1,7 +1,6 @@
 """
 Class to interact with a relational database specific for the application.
 """
-
 from datetime import datetime, timedelta, time, date
 from typing import Sequence, Optional, Dict, List, Tuple
 
@@ -11,16 +10,23 @@ from sqlalchemy import create_engine, MetaData, Table, Column, Integer, String, 
 
 from opendf.applications.core.nodes.time_nodes import Pdate_to_date_sexp
 from opendf.applications.smcalflow.domain import recipient_to_str_node, event_to_str_node, match_start, match_end, \
-    attendees_to_str_node, TIME_SUITABLE_FOR_SUBJECT
+    attendees_to_str_node, TIME_SUITABLE_FOR_SUBJECT, DBevent, DBPerson, WeatherPlace
 from opendf.applications.smcalflow.storage import Storage, RecipientEntry, AttendeeEntry, LocationEntry, EventEntry, \
     HolidayEntry
-from opendf.applications.smcalflow.stub_data import db_events, db_persons, CURRENT_RECIPIENT_ID, weather_places, \
-    place_has_features, CURRENT_RECIPIENT_LOCATION_ID, HOLIDAYS
+
 from opendf.exceptions.python_exception import SingletonClassException
 from opendf.graph.nodes.node import Node
+
+from opendf.defs import EnvironmentDefinition
+
+environment_definitions = EnvironmentDefinition.get_instance()
+
 from opendf.defs import database_connection, database_log, database_future, NODE_COLOR_DB, DB_NODE_TAG, \
     event_suggestion_period, minimum_slot_interval, minimum_duration, maximum_duration_days, get_system_date, posname, \
     get_system_datetime
+
+from opendf.applications.smcalflow.domain import get_stub_data_from_json
+
 from opendf.utils.database_utils import get_database_handler
 from opendf.utils.utils import to_list, str_to_datetime, id_sexp
 
@@ -285,7 +291,13 @@ class Database(Storage):
         self.metadata.drop_all(self.engine)
         self.metadata.clear()  # clear the tables known by the metadata
 
-    def clean_database(self):
+    def clear_cache(self):
+        self._recipient_graph: Dict[int, Node] = {}
+        self._attendee_graph: Dict[Tuple[int, int], Node] = {}
+        self._event_graph: Dict[int, Node] = {}
+        self._location_graph: Dict[int, Node] = {}
+
+    def clear_database(self):
         """
         Erase all data from the database, but does not delete the scheme.
         This method only touches the tables created by this class.
@@ -295,11 +307,7 @@ class Database(Storage):
             for table in reversed(self.metadata.sorted_tables):
                 connection.execute(table.delete())
             transaction.commit()
-
-        self._recipient_graph: Dict[int, Node] = {}
-        self._attendee_graph: Dict[Tuple[int, int], Node] = {}
-        self._event_graph: Dict[int, Node] = {}
-        self._location_graph: Dict[int, Node] = {}
+        self.clear_cache()
 
     def _create_database(self):
         """
@@ -342,6 +350,14 @@ class Database(Storage):
                 return create_recipient_from_row(row)
 
         return None
+
+    def get_location_entry(self, identifier) -> LocationEntry:
+        with self.engine.connect() as connection:
+            selection = select(self.LOCATION_TABLE).where(self.LOCATION_TABLE.columns.id == identifier)
+            for row in connection.execute(selection):
+                return LocationEntry(
+                    row.id, row.name, row.address, row.latitude, row.longitude,
+                    row.radius, row.always_free, row.is_virtual)
 
     def get_recipient_graph(self, identifier, d_context, update_cache=True):
         recipient_graph = self._recipient_graph.get(identifier)
@@ -386,6 +402,14 @@ class Database(Storage):
         return None
 
     def get_friends(self, recipient_id):
+        """
+        Gets the list of friend from the recipient.
+
+        :param recipient_id: the recipient id
+        :type recipient_id: int
+        :return: the list of friends id from the recipient
+        :rtype: List[int]
+        """
         friends = []
         with self.engine.connect() as connection:
             selection = select(self.RECIPIENT_HAS_FRIEND_TABLE.columns.friend_id).where(
@@ -629,9 +653,14 @@ class Database(Storage):
         if not identifiers:
             return []
         with self.engine.connect() as connection:
-            selection = select(self.EVENT_TABLE, self.LOCATION_TABLE, self.RECIPIENT_TABLE).join(
-                self.LOCATION_TABLE, self.EVENT_TABLE.columns.location_id == Database.LOCATION_TABLE.columns.id,
-                isouter=True).join(self.RECIPIENT_TABLE).where(self.EVENT_TABLE.columns.id.in_(identifiers))
+            if identifiers=='all':
+                selection = select(self.EVENT_TABLE, self.LOCATION_TABLE, self.RECIPIENT_TABLE).join(
+                    self.LOCATION_TABLE, self.EVENT_TABLE.columns.location_id == Database.LOCATION_TABLE.columns.id,
+                    isouter=True).join(self.RECIPIENT_TABLE)
+            else:
+                selection = select(self.EVENT_TABLE, self.LOCATION_TABLE, self.RECIPIENT_TABLE).join(
+                    self.LOCATION_TABLE, self.EVENT_TABLE.columns.location_id == Database.LOCATION_TABLE.columns.id,
+                    isouter=True).join(self.RECIPIENT_TABLE).where(self.EVENT_TABLE.columns.id.in_(identifiers))
             events = []
             for row in connection.execute(selection):
                 attendees = self._get_attendees_from_event(row.id)
@@ -677,7 +706,8 @@ class Database(Storage):
             if event_entry is None:
                 return None
             recipient_nodes = \
-                [self.get_recipient_graph(attendee.recipient.identifier, d_context) for attendee in event_entry.attendees]
+                [self.get_recipient_graph(attendee.recipient.identifier, d_context) for attendee in
+                 event_entry.attendees]
             string_entry = event_to_str_node(event_entry, recipient_nodes)
             event_graph, _ = Node.call_construct_eval(string_entry, d_context, constr_tag=NODE_COLOR_DB)
             event_graph.tags[DB_NODE_TAG] = 0
@@ -695,6 +725,18 @@ class Database(Storage):
         """
         with self.engine.connect() as connection:
             selection = select(func.max(self.EVENT_TABLE.columns.id).label("max"))
+            for row in connection.execute(selection):
+                return row.max
+
+    def _get_maximum_person_id(self):
+        """
+        Gets the maximum person identifier.
+
+        :return: the maximum person identifier
+        :rtype: int
+        """
+        with self.engine.connect() as connection:
+            selection = select(func.max(self.RECIPIENT_TABLE.columns.id).label("max"))
             for row in connection.execute(selection):
                 return row.max
 
@@ -751,6 +793,7 @@ class Database(Storage):
         location_id = self._get_location_if_exist(location)
         organizer_id = self._current_recipient_id
         identifier = self._get_maximum_event_id() + 1
+
         with self.engine.connect() as connection:
             if location_id is None:
                 location_id = self._get_maximum_location_id() + 1
@@ -771,6 +814,12 @@ class Database(Storage):
 
             event_has_attendee_data = self._get_has_attendee_data(identifier, attendees)
             connection.execute(insert(self.EVENT_HAS_ATTENDEE_TABLE), event_has_attendee_data)
+
+            # TODO - need to make sure that the event does not exist already?
+            #  sqlalchemy.exc.IntegrityError: (sqlite3.IntegrityError) UNIQUE constraint failed:
+            #  event_has_attendee.event_id, event_has_attendee.recipient_id
+            #  [SQL: INSERT INTO event_has_attendee(event_id, recipient_id, show_as_status, response_status) VALUES(?, ?, ?, ?)]
+            #  [parameters: (12, 10007, 'Busy', 'NotResponded')]
 
             connection.commit()
 
@@ -816,7 +865,11 @@ class Database(Storage):
             return None
 
         with self.engine.connect() as connection:
-            connection.execute(delete(self.EVENT_TABLE).where(self.EVENT_TABLE.columns.id == ev[0].identifier))
+            event_id = ev[0].identifier
+            connection.execute(delete(self.EVENT_TABLE).where(self.EVENT_TABLE.columns.id == event_id))
+            connection.execute(
+                delete(self.EVENT_HAS_ATTENDEE_TABLE).where(
+                    self.EVENT_HAS_ATTENDEE_TABLE.columns.event_id == event_id))
             connection.commit()
 
         self._event_graph.pop(identifier, None)  # invalidate cached value
@@ -980,17 +1033,203 @@ class Database(Storage):
             for row in connection.execute(selection):
                 return row.count == 0
 
+    def add_db_event(self, db_event) -> DBevent:
+        """
+        Adds the event to the database.
+        It assumes all attendees exist in the database.
 
-def populate_stub_database():
+        :param db_event: the event to be added
+        :type db_event: DBevent
+        :return: the added event with the id from the database
+        :rtype: DBevent
+        """
+
+        location = db_event.location
+        subject = db_event.subject
+        start = db_event.start
+        end = db_event.end
+        location_id = self._get_location_if_exist(location)
+        organizer_id = self._current_recipient_id
+        identifier = self._get_maximum_event_id() + 1
+
+        with self.engine.connect() as connection:
+            if location_id is None:
+                location_id = self._get_maximum_location_id() + 1
+                connection.execute(
+                    insert(self.LOCATION_TABLE),
+                    {"id": location_id, "name": location,
+                     "always_free": location == 'online'})
+
+            connection.execute(insert(self.EVENT_TABLE), {
+                "id": identifier, "subject": subject,
+                "location_id": location_id, "organizer_id": organizer_id,
+                "starts_at": start, "ends_at": end
+            })
+
+            attendee_data = []
+            for attendee, accepted, show_as in \
+                    zip(db_event.attendees, db_event.accepted, db_event.showas):
+                attendee_data.append({
+                    "event_id": identifier, "recipient_id": attendee,
+                    "show_as_status": accepted, "response_status": show_as
+                })
+            connection.execute(
+                insert(self.EVENT_HAS_ATTENDEE_TABLE), attendee_data)
+
+            connection.commit()
+
+        result = DBevent(identifier, subject, start, end, location, db_event.attendees, db_event.accepted,
+                         db_event.showas)
+        return result
+
+    def delete_db_event(self, event_id) -> DBevent:
+        """
+        Deletes the event from the database.
+
+        :param event_id: the id of the event to be deleted
+        :type event_id: int
+        :return: the deleted event
+        :rtype: DBevent
+        """
+        event_entry = self.get_event_entry(event_id)
+        if event_entry is not None:
+            with self.engine.connect() as connection:
+                connection.execute(
+                    delete(self.EVENT_TABLE).where(self.EVENT_TABLE.columns.id == event_id))
+                connection.execute(
+                    delete(self.EVENT_HAS_ATTENDEE_TABLE).where(
+                        self.EVENT_HAS_ATTENDEE_TABLE.columns.event_id == event_id))
+                connection.commit()
+
+        return DBevent(
+            event_entry.identifier, event_entry.subject, event_entry.starts_at, event_entry.ends_at,
+            event_entry.location.name,
+            list(map(lambda x: x.recipient.identifier, event_entry.attendees)),
+            list(map(lambda x: x.response_status, event_entry.attendees)),
+            list(map(lambda x: x.show_as_status, event_entry.attendees)),
+        )
+
+    def add_db_person(self, db_person) -> DBPerson:
+        """
+        Adds the person to the database.
+
+        :param db_person: the person to be added
+        :type db_person: DBPerson
+        :return: the added person with the id from the database
+        :rtype: DBPerson
+        """
+        identifier = self._get_maximum_person_id() + 1
+        person_data = [{
+            "id": identifier, "full_name": db_person.fullName, "first_name": db_person.firstName,
+            "last_name": db_person.lastName, "phone_number": db_person.phone_number,
+            "email_address": db_person.email_address, "manager_id": db_person.manager_id
+        }]
+
+        person_has_friend_data = []
+        if isinstance(db_person.friends, Sequence):
+            for friend in db_person.friends:
+                person_has_friend_data.append({"recipient_id": identifier, "friend_id": friend})
+        else:
+            person_has_friend_data.append({"recipient_id": identifier, "friend_id": db_person.friends})
+
+        with self.engine.connect() as connection:
+            connection.execute(insert(self.RECIPIENT_TABLE), person_data)
+            if person_has_friend_data:
+                connection.execute(insert(self.RECIPIENT_HAS_FRIEND_TABLE), person_has_friend_data)
+            connection.commit()
+            return DBPerson(
+                db_person.fullName, db_person.firstName, db_person.lastName,
+                identifier, db_person.phone_number, db_person.email_address,
+                db_person.manager_id, db_person.friends)
+
+    def delete_db_person(self, person_id) -> DBPerson:
+        """
+        Deletes the person from the database.
+
+        :param event_id: the id of the person to be deleted
+        :type event_id: int
+        :return: the deleted person
+        :rtype: DBevent
+        """
+        person_entry = self.get_recipient_entry(person_id)
+        friends = self.get_friends(person_id)
+        if person_entry is not None:
+            with self.engine.connect() as connection:
+                connection.execute(
+                    delete(self.RECIPIENT_TABLE).where(self.RECIPIENT_TABLE.columns.id == person_id))
+                connection.execute(
+                    delete(self.RECIPIENT_HAS_FRIEND_TABLE).where(
+                        self.RECIPIENT_HAS_FRIEND_TABLE.columns.recipient_id == person_id))
+                # TODO: should we delete all the events organised by this person?
+                connection.commit()
+
+        return DBPerson(
+            person_entry.full_name, person_entry.first_name, person_entry.last_name, person_entry.identifier,
+            person_entry.phone_number, person_entry.email_address, person_entry.manager_id, friends
+        )
+
+    def add_db_place(self, db_place) -> WeatherPlace:
+        """
+        Adds the place to the database.
+
+        :param db_place: the place to be added
+        :type db_place: WeatherPlace
+        :return: the added place with the id from the database
+        :rtype: WeatherPlace
+        """
+        identifier = self._get_maximum_location_id() + 1
+        location_data = [{
+            'id': identifier, 'name': db_place.name, 'address': db_place.address,
+            'latitude': db_place.latitude, 'longitude': db_place.longitude,
+            'radius': db_place.radius, 'always_free': db_place.always_free,
+            'is_virtual': db_place.is_virtual
+        }]
+        with self.engine.connect() as connection:
+            connection.execute(insert(self.LOCATION_TABLE), location_data)
+            connection.commit()
+
+        return WeatherPlace(
+            identifier, db_place.name, db_place.address, db_place.latitude, db_place.longitude,
+            db_place.radius, db_place.always_free, db_place.is_virtual
+        )
+
+    def delete_db_place(self, place_id) -> WeatherPlace:
+        """
+        Deletes the place from the database.
+
+        :param place_id: the id of the place to be deleted
+        :type place_id: int
+        :return: the deleted place
+        :rtype: DBevent
+        """
+        place_entry = self.get_location_entry(place_id)
+        if place_entry is not None:
+            with self.engine.connect() as connection:
+                connection.execute(
+                    delete(self.LOCATION_TABLE).where(self.LOCATION_TABLE.columns.id == place_id))
+                # TODO: should we delete all the events in this location?
+                connection.commit()
+
+        return WeatherPlace(
+            place_entry.identifier, place_entry.name, place_entry.address,
+            place_entry.latitude, place_entry.longitude, place_entry.radius,
+            place_entry.always_free, place_entry.is_virtual
+        )
+
+
+def populate_stub_database(stub_data_file, people=None, events=None, places=None):
     """
     Populates the database based on the data from the ms_domain.py file.
     """
     database = Database.get_instance()
 
-    # reads the events from the ms_domain
-    people = db_persons
-    events = db_events
-    database.clean_database()
+    db_events, db_persons, weather_places, HOLIDAYS, CURRENT_RECIPIENT_ID, \
+    CURRENT_RECIPIENT_LOCATION_ID, place_has_features, _ = get_stub_data_from_json(stub_data_file)
+
+    people = people if people else db_persons
+    events = events if events else db_events
+    places = places if places else weather_places
+    database.clear_database()
     with database.engine.connect() as connection:
         recipient_data = []
         recipient_has_friend_data = []
@@ -1013,8 +1252,9 @@ def populate_stub_database():
         event_has_attendee_data = []
         organizer_id = CURRENT_RECIPIENT_ID  # for now, the organizer is the current user
         for event in events:
+            loc = event.location
             event_data.append({
-                "id": event.id, "subject": event.subject, "location_id": event.location, "organizer_id": organizer_id,
+                "id": event.id, "subject": event.subject, "location_id": loc, "organizer_id": organizer_id,
                 "starts_at": str_to_datetime(event.start), "ends_at": str_to_datetime(event.end)
             })
             if isinstance(event.attendees, Sequence):
@@ -1029,7 +1269,7 @@ def populate_stub_database():
                     "show_as_status": event.showas, "response_status": event.accepted
                 })
 
-        for weather_place in weather_places:
+        for weather_place in places:
             location_data.append({
                 'id': len(location_data), 'name': weather_place.name, 'address': weather_place.address,
                 'latitude': weather_place.latitude, 'longitude': weather_place.longitude,

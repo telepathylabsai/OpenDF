@@ -415,15 +415,8 @@ class shift_start(Modifier):
                     d_context)
                 self.set_result(g)
 
-    def match(self, obj, iview=VIEW_INT, oview=None, check_level=False, match_miss=False):
+    def match(self, obj, iview=VIEW.INT, oview=None, check_level=False, match_miss=False):
         return self.res.match(obj, check_level=check_level, match_miss=match_miss)
-
-    # def exec(self, all_nodes=None, goals=None):
-    #     exp = f"{self.time_modifier}(adjustByPeriod(" \
-    #           f"{id_sexp(self.get_ext_view(f'{posname(1)}.slot.{self.time_name}'))}, " \
-    #           f"{id_sexp(self.input_view(posname(2)))}))"
-    #     g, _ = Node.call_construct_eval(exp)
-    #     self.set_result(g)
 
 
 class shift_end(shift_start):
@@ -872,34 +865,12 @@ class participated_in(Modifier):
         ot, it = inp.outypename(), inp.typename()
         if ot == 'Node' and inp.is_aggregator():
             ot = inp.get_op_object().typename()
-        pref1 = 'Attendee?(eventid='
         if not evl:
             if inp.is_modifier_tree('Event'):
                 self.wrap_input(posname(1), 'FindEvents(')
         else:  # evl
             if ot in ['Event', 'Int']:
                 self.wrap_input(posname(1), 'EventToAttendeeConstraint(', do_eval=True)
-            # elif inp.is_aggregator():
-            #     for i in list(inp.inputs.keys()):
-            #         if is_pos(i):
-            #             if inp.input_view(i).outypename() == 'Event':
-            #                 inp.wrap_input(i, 'getattr(id,', do_eval=evl)
-            #             # if inp.input_view(i).outypename() == 'Str':
-            #             #     inp.wrap_input(i, pref2, suf=suf2, do_eval=evl)
-            #             # if inp.input_view(i).outypename() == 'Recipient':
-            #             #     inp.wrap_input(i, pref1, do_eval=evl)
-            #     if inp.typename() not in ['SET', 'OR']:  # if not SET/OR - defaults to 'OR'
-            #         self.wrap_input(posname(1), 'replace_agg(', suf=', OR)', do_eval=evl)
-            # elif it == 'TEE':
-            #     # if ot == 'Str':
-            #     #     inp.wrap_input(posname(1), pref2, suf=suf2)
-            #     self.wrap_input(posname(1), pref1, do_eval=evl)
-            # # elif ot in ['Str']:
-            # #     self.wrap_input(posname(1), pref1 + pref2, suf=suf2 + suf1, do_eval=evl)
-            # # elif ot == 'Recipient':
-            # #     self.wrap_input(posname(1), pref1, do_eval=evl)
-            # elif evl and ot == 'Event':
-            #     self.wrap_input(posname(1), 'Attendee?(eventid=getattr(id,', do_eval=evl)
 
     def exec(self, all_nodes=None, goals=None):
         self.do_trans(evl=True)

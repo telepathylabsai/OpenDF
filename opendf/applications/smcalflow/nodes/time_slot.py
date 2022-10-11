@@ -4,7 +4,7 @@ TimeSlot node.
 from sqlalchemy import or_
 
 from opendf.applications.smcalflow.nodes.time_nodes import *
-from opendf.defs import VIEW_INT, posname
+from opendf.defs import VIEW, posname
 from opendf.applications.smcalflow.exceptions.python_exception import TimeSlotException
 from opendf.utils.utils import flatten_list, to_list
 
@@ -458,7 +458,7 @@ class TimeSlot(Node):
 
         return selection
 
-    def custom_match(self, nm, obj, iview=VIEW_INT, oview=None, check_level=False, match_miss=False):
+    def custom_match(self, nm, obj, iview=VIEW.INT, oview=None, check_level=False, match_miss=False):
         # self is a TimeSlot constraint, obj is a "real" TimeSlot object (not a constraint)
         # since obj is real object, guaranteed that intervals are always comparable
         if nm == 'bound':
@@ -475,27 +475,43 @@ class TimeSlot(Node):
 
     def describe(self, params=None):
         s = ''
+        obj = []
+        pp = params
+        if isinstance(params, dict):
+            pp['add_prep'] = 1
+        else:
+            pp += ['add_prep']
         if 'start' in self.inputs:
-            t = self.input_view('start').describe(params + ['add_prep'])
+            msg = self.input_view('start').describe(pp)
+            t, o = msg.text, msg.objects
             if t:
                 s += ' starting ' + t
+            obj += o
         if 'end' in self.inputs and ('start' not in self.inputs or 'duration' not in self.inputs):
-            t = self.input_view('end').describe(params + ['add_prep'])
+            msg = self.input_view('end').describe(pp)
+            t, o = msg.text, msg.objects
             if t:
                 s += ' ending ' + t
+            obj += o
         if 'duration' in self.inputs:
-            t = self.input_view('duration').describe(params)
+            msg = self.input_view('duration').describe(params)
+            t, o = msg.text, msg.objects
             if t:
                 s += ' lasting ' + t
+            obj += o
         if 'bound' in self.inputs:
-            t = self.input_view('bound').describe(params)
+            msg = self.input_view('bound').describe(params)
+            t, o = msg.text, msg.objects
             if t:
                 s += ' during ' + t
+            obj += o
         if 'inter' in self.inputs:
-            t = self.input_view('inter').describe(params)
+            msg = self.input_view('inter').describe(params)
+            t, o = msg.text, msg.objects
             if t:
                 s += ' intersecting ' + t
-        return s
+            obj += o
+        return Message(s, objects=obj)
 
     def slot_ctree_str(self, sep_date=True, open_slot=True):
         """
@@ -673,6 +689,8 @@ class TimeSlot(Node):
         all_ivs, turn_bnds, niv = [], [], 0  # intervals for all turns, with indices showing start/end of each turn
         has_ors = []
 
+        prune = []  # list of slot_intervals
+
         # 1. get intervals / interval-clusters per turn
         for t in turns:
             iv = []
@@ -683,8 +701,12 @@ class TimeSlot(Node):
                     h = True
                 else:
                     pos, neg = t.get_pos_neg_objs()
-                    ipos, ineg = [o.to_slot_interval() for o in pos], [o.to_slot_interval(neg=True)
-                                                                       for o in neg]
+                    ipos, prune_pos = TimeSlot.slot_to_interval(pos)
+                    ineg, prune_neg = TimeSlot.slot_to_interval(neg, neg=True)
+                    # ipos, ineg = [o.to_slot_interval() for o in pos], [o.to_slot_interval(neg=True)
+                    #                                                    for o in neg]
+                    prune.extend(prune_pos)  # TODO - fix - this is not a slot_interval
+                    prune.extend(prune_neg)
                     iv = ipos + ineg
             has_ors.append(h)
             turn_ivs.append(iv)
@@ -710,7 +732,7 @@ class TimeSlot(Node):
         all_ivs = [i for i in flatten_list(turn_ivs) if i not in prune_slots]
 
         # 4. collect intervals to prune
-        prune = []
+
 
         # go over all intervals, from old to new. At each interval:
         #   1. update a (pruned) list of intervals, separately for each one of (start, end, dur);
@@ -722,3 +744,15 @@ class TimeSlot(Node):
                 siv.prune_curr(curr_start, curr_end, curr_dur, curr_bound, curr_inter, prune)
 
         return prune
+
+    @staticmethod
+    def slot_to_interval(time_slots, neg=False):
+        intervals = []
+        prune = []
+        for time_slot in time_slots:
+            try:
+                intervals.append(time_slot.to_slot_interval(neg=neg))
+            except TimeSlotException:
+                prune.append(time_slot)
+
+        return intervals, prune

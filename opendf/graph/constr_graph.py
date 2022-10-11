@@ -80,6 +80,7 @@ def construct_graph(sexp, d_context, register=True, top_only=False, constr_tag=R
             sexp += '()'
 
     logger.debug('::::::: ' + sexp)
+    # print('\n++++ : ' + sexp)
 
     d_context = d_context if d_context or register == False else DialogContext()
     try:
@@ -141,7 +142,7 @@ def str_to_type(val):
 
 # rearrange AST tree to allow "sugared get": e.g.  ":name(func(...))" --> "getattr(name, func(...))"
 def ast_handle_sugar(ast):
-    if ast.name and ast.name[0] == ':':
+    if ast.name and ast.name[0] == ':' and not ast.is_terminal:  # if a terminal value starts with ':'...
         if len(ast.inputs) != 1:
             raise SemanticException('Error - sugar get syntax - needs exactly one input')
         nm, p2 = ast.inputs[0]
@@ -193,6 +194,23 @@ def ast_handle_simplify(ast):
     return ast
 
 
+def fix_pos_order(inps):
+    done = False
+    l = len(inps)
+    while not done:
+        done = True
+        for i in range(l):
+            for j in range(i+1, l):
+                nm1, nd1 = inps[i]
+                nm2, nd2 = inps[j]
+                if is_pos(nm1) and is_pos(nm2):
+                    n1, n2 = posname_idx(nm1), posname_idx(nm2)
+                    if n1>n2:
+                        done=False
+                        inps[i], inps[j] = inps[j], inps[i]
+    return inps
+
+
 def ast_top_down_construct(ast, parent, d_context, register=True, top_only=False, constr_tag=None):
     if ast.parent is None and ast.is_terminal:
         raise SemanticException('Bad program - root is terminal')
@@ -200,7 +218,7 @@ def ast_top_down_construct(ast, parent, d_context, register=True, top_only=False
     ast = ast_handle_sugar(ast)
     ast = ast_handle_simplify(ast)
 
-    logger.debug(ast.name)
+    #logger.debug(ast.name)
     typ, clv = get_type_and_clevel(ast.name)
     ptyp = parent.typename() if parent else None
 
@@ -260,18 +278,16 @@ def ast_top_down_construct(ast, parent, d_context, register=True, top_only=False
                 nm = smp.signature.real_name(nm)
             if is_pos(nm):  # advance auto positional name to next position
                 j = posname_idx(nm)
-                # if j < pos:  # this can happen if explicitly gave positional name - e.g. Node(pos3=x, pos2=y)
-                #     if alias:
-                #         raise SemanticException('alias usage should respect positional order : %s.%s' % (typ, alias))
-                #     else:
-                #         raise SemanticException('Positional parameters out of order : %s.%s' % (typ, nm))
                 pos = j + 1
             ast.inputs[i] = (nm, nd)
             nd.role = nm
+
+        # fix wrong order of positional inputs
+        ast.inputs = fix_pos_order(ast.inputs)
         # create node
         n = node_fact.gen_node(d_context, ast.name, register=register, constr_tag=constr_tag)
 
-    n.set_feats(ast_feats=ast.special_features)
+    n.set_feats(ast_feats=ast.special_features, context=d_context, register=register)
     if not ast.is_assign:
         n.add_tags(constr_tag)
     n.add_tags(ast.tags)
@@ -284,7 +300,7 @@ def ast_top_down_construct(ast, parent, d_context, register=True, top_only=False
         return n
 
     if parent:
-        n.connect_in_out(ast.role, parent, VIEW_INT if ast.special_features and 'I' in ast.special_features else None)
+        n.connect_in_out(ast.role, parent, VIEW.INT if ast.special_features and 'I' in ast.special_features else None)
         if parent.typename() == 'Let' and ast.role == 'pos2':  # set assign indicated by 'Let'
             if not d_context:
                 raise SemanticException('Context error - trying to use assign without context')

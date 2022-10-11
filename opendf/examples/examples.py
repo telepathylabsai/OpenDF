@@ -7,9 +7,10 @@ The user can select the example by its index, from the command line. The example
 dialogs = [
     # 0
     [
+        "Find(Hotel?(internet=yes, pricerange=cheap, type=hotel))",
+        #"revise(old=Hotel??(), newMode=overwrite, new=Hotel?(name=LIKE(Name(cambridge belfry)), parking=refer(role=parking)))",
         # 'UpdateEvent(event=Event(start=Today()), update=Event(attendees=AND(#Lindsay, FindManager(#Lindsay))))',
         # 'UpdateEvent(event=Event?(), update=Event?())',
-        'FindEvents(with_attendee(jane))',
 
         #'Yield(output=Date(year=2021))',
         # 'revise(hasParam=year, new=#2020, newMode=extend)',

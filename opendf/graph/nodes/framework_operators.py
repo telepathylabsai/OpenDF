@@ -12,12 +12,13 @@ Their main usages are:
 
 from sqlalchemy import or_, select, not_, and_
 from sqlalchemy.sql import Join
-from opendf.defs import VIEW_INT, VIEW_EXT, POS, is_pos, posname
+from opendf.defs import VIEW, POS, is_pos, posname, Message
 from opendf.exceptions.df_exception import InvalidNumberOfInputsException, NotImplementedYetDFException, \
     InvalidResultException
 from opendf.utils.utils import flatten_list
 from opendf.graph.nodes.framework_objects import Bool, Str
 from opendf.graph.nodes.node import Node
+
 
 # ################################################################################################
 # ################################################################################################
@@ -25,8 +26,6 @@ from opendf.graph.nodes.node import Node
 # TODO: add operators corresponding to AlwaysTrueConstraint / AlwaysFalseConstraint
 #  - e.g EMPTY, CLEAR, TRUE, FALSE
 #     - different meaning for clear (erase in modifier) vs. empty (insist object does not have field)
-
-
 
 
 class Operator(Node):
@@ -81,7 +80,7 @@ class Modifier(Node):
     #   - stop match and return True - e.g. postpone_start(15_minutes) - no point trying to match
     #   - simple pass through - e.g. add_person(John)  - maybe there is a point matching (need use case...)
     # setting the second as default
-    def match(self, obj, iview=VIEW_INT, oview=None, check_level=False, match_miss=False):
+    def match(self, obj, iview=VIEW.INT, oview=None, check_level=False, match_miss=False):
         # inp = self.input_view(posname(1))
         inp = self.res
         # if inp:
@@ -153,10 +152,10 @@ class AND(Aggregator):
     def valid_input(self):
         inputs = self.num_pos_inputs()
         if inputs == 0:
-            raise InvalidNumberOfInputsException(self, 'at least one', inputs)
+            raise InvalidNumberOfInputsException.make_exc(self, 'at least one', inputs)
 
-    def match(self, obj, iview=VIEW_INT, oview=None, check_level=False, match_miss=False):
-        if self.constr_obj_view == VIEW_EXT:  # TODO: verify, and then copy for all other operators!
+    def match(self, obj, iview=VIEW.INT, oview=None, check_level=False, match_miss=False):
+        if self.constr_obj_view == VIEW.EXT:  # TODO: verify, and then copy for all other operators!
             obj = obj.res
         for nm in self.inputs:
             inp = self.input_view(nm)
@@ -178,9 +177,9 @@ class OR(Aggregator):
     def valid_input(self):
         inputs = self.num_pos_inputs()
         if inputs == 0:
-            raise InvalidNumberOfInputsException(self, "at least one", inputs)
+            raise InvalidNumberOfInputsException.make_exc(self, "at least one", inputs)
 
-    def match(self, obj, iview=VIEW_INT, oview=None, check_level=False, match_miss=False):
+    def match(self, obj, iview=VIEW.INT, oview=None, check_level=False, match_miss=False):
         for nm in self.inputs:
             inp = self.input_view(nm)
             if inp.match(obj, check_level=check_level, match_miss=match_miss):
@@ -205,9 +204,9 @@ class NOT(Aggregator):
     def valid_input(self):
         inputs = self.num_pos_inputs()
         if inputs != 1:
-            raise InvalidNumberOfInputsException(self, 1, inputs)
+            raise InvalidNumberOfInputsException.make_exc(self, 1, inputs)
 
-    def match(self, obj, iview=VIEW_INT, oview=None, check_level=False, match_miss=False):
+    def match(self, obj, iview=VIEW.INT, oview=None, check_level=False, match_miss=False):
         nm = list(self.inputs.keys())[0]
         inp = self.input_view(nm)
         return not inp.match(obj, check_level=check_level, match_miss=match_miss)
@@ -233,9 +232,9 @@ class ANY(Aggregator):
     def valid_input(self):
         inputs = self.num_pos_inputs()
         if inputs != 1:
-            raise InvalidNumberOfInputsException(self, 'at least one', inputs)
+            raise InvalidNumberOfInputsException.make_exc(self, 'at least one', inputs)
 
-    def match(self, obj, iview=VIEW_INT, oview=None, check_level=False, match_miss=False):
+    def match(self, obj, iview=VIEW.INT, oview=None, check_level=False, match_miss=False):
         nm = posname(1)
         inp = self.input_view(nm)
         refs = inp.unroll_set_objects([])
@@ -265,14 +264,14 @@ class NONE(Aggregator):
     def valid_input(self):
         inputs = self.num_pos_inputs()
         if inputs != 1:
-            raise InvalidNumberOfInputsException(self, 1, inputs)
+            raise InvalidNumberOfInputsException.make_exc(self, 1, inputs)
 
     def generate_sql_where(self, selection, parent_id, **kwargs):
         conditions, selection = aggregate_selections(self.input_view(posname(1)).inputs, selection, parent_id, kwargs)
 
         return selection.where(not_(or_(*conditions).self_group()))
 
-    def match(self, obj, iview=VIEW_INT, oview=None, check_level=False, match_miss=False):
+    def match(self, obj, iview=VIEW.INT, oview=None, check_level=False, match_miss=False):
         nm = posname(1)
         inp = self.input_view(nm)
         refs = inp.unroll_set_objects([])
@@ -296,9 +295,9 @@ class ALL(Aggregator):
     def valid_input(self):
         inputs = self.num_pos_inputs()
         if inputs != 1:
-            raise InvalidNumberOfInputsException(self, 1, inputs)
+            raise InvalidNumberOfInputsException.make_exc(self, 1, inputs)
 
-    def match(self, obj, iview=VIEW_INT, oview=None, check_level=False, match_miss=False):
+    def match(self, obj, iview=VIEW.INT, oview=None, check_level=False, match_miss=False):
         nm = posname(1)
         inp = self.input_view(nm)
         refs = inp.unroll_set_objects([])
@@ -334,9 +333,9 @@ class EXACT(Aggregator):
     def valid_input(self):
         inputs = self.num_pos_inputs()
         if inputs == 0:
-            raise InvalidNumberOfInputsException(self, 'at least one', inputs)
+            raise InvalidNumberOfInputsException.make_exc(self, 'at least one', inputs)
 
-    def match(self, obj, iview=VIEW_INT, oview=None, check_level=False, match_miss=False):
+    def match(self, obj, iview=VIEW.INT, oview=None, check_level=False, match_miss=False):
         # if self.inp_equals('subField', True):
         inps = [self.input_view(i) for i in self.inputs if is_pos(i)]
         if len(list(set([(i.typename(), i.constraint_level) for i in inps]))) != 1:
@@ -365,6 +364,29 @@ class EXACT(Aggregator):
         return selection.where(and_(*conditions).self_group())
 
 
+# ALT (bad name) is not a "normal" operator - it's NOT used in constraints
+# it is used as an OR on execution - overrides exceptions if the execution of any of its inputs suceeded
+# use with care, until this becomes clearer!
+# do we really want to discard all exceptions if one branch is ok? (what about warnings...?)
+class ALT(Aggregator):
+    def __init__(self):
+        super().__init__()  # Dynamic output type
+        self.ex = None  # temp store exceptions of children
+
+    def valid_input(self):
+        inputs = self.num_pos_inputs()
+        if inputs == 0:
+            raise InvalidNumberOfInputsException.make_exc(self, "at least one", inputs)
+
+    def allows_exception(self, e):
+        for i in self.inputs:
+            if self.inputs[i].evaluated:
+                self.set_result(self.inputs[i])
+                self.evaluated = True
+                return True, None
+        return False, e
+
+
 class LT(Qualifier):
     def __init__(self):
         super().__init__()  # Dynamic output type
@@ -372,9 +394,9 @@ class LT(Qualifier):
     def valid_input(self):
         inputs = self.num_pos_inputs()
         if inputs != 1:
-            raise InvalidNumberOfInputsException(self, 1, inputs)
+            raise InvalidNumberOfInputsException.make_exc(self, 1, inputs)
 
-    def match(self, obj, iview=VIEW_INT, oview=None, check_level=False, match_miss=False):
+    def match(self, obj, iview=VIEW.INT, oview=None, check_level=False, match_miss=False):
         inp = self.input_view(posname(1))
         return inp.func_LT(obj)  # compare obj to arg of (LT)
 
@@ -393,9 +415,9 @@ class GT(Qualifier):
     def valid_input(self):
         inputs = self.num_pos_inputs()
         if inputs != 1:
-            raise InvalidNumberOfInputsException(self, 1, inputs)
+            raise InvalidNumberOfInputsException.make_exc(self, 1, inputs)
 
-    def match(self, obj, iview=VIEW_INT, oview=None, check_level=False, match_miss=False):
+    def match(self, obj, iview=VIEW.INT, oview=None, check_level=False, match_miss=False):
         inp = self.input_view(posname(1))
         return inp.func_GT(obj)  # compare obj to arg of (GT)
 
@@ -410,9 +432,9 @@ class GE(Qualifier):
     def valid_input(self):
         inputs = self.num_pos_inputs()
         if inputs != 1:
-            raise InvalidNumberOfInputsException(self, 1, inputs)
+            raise InvalidNumberOfInputsException.make_exc(self, 1, inputs)
 
-    def match(self, obj, iview=VIEW_INT, oview=None, check_level=False, match_miss=False):
+    def match(self, obj, iview=VIEW.INT, oview=None, check_level=False, match_miss=False):
         inp = self.input_view(posname(1))
         return inp.func_GE(obj)  # compare obj to arg of (GE)
 
@@ -427,9 +449,9 @@ class LE(Qualifier):
     def valid_input(self):
         inputs = self.num_pos_inputs()
         if inputs != 1:
-            raise InvalidNumberOfInputsException(self, 1, inputs)
+            raise InvalidNumberOfInputsException.make_exc(self, 1, inputs)
 
-    def match(self, obj, iview=VIEW_INT, oview=None, check_level=False, match_miss=False):
+    def match(self, obj, iview=VIEW.INT, oview=None, check_level=False, match_miss=False):
         inp = self.input_view(posname(1))
         return inp.func_LE(obj)  # compare obj to arg of (LE)
 
@@ -444,7 +466,7 @@ class FN(Qualifier):
     def __call__(self, *args, **kwargs):
         return None
 
-    def match(self, obj, iview=VIEW_INT, oview=None, check_level=False, match_miss=False):
+    def match(self, obj, iview=VIEW.INT, oview=None, check_level=False, match_miss=False):
         fname = self.get_dat('fname')
         farg = self.input_view('farg')
         return farg.func_FN(obj, fname=fname, farg=farg)
@@ -460,9 +482,9 @@ class EQ(Qualifier):
     def valid_input(self):
         inputs = self.num_pos_inputs()
         if inputs == 0:
-            raise InvalidNumberOfInputsException(self, 1, inputs)
+            raise InvalidNumberOfInputsException.make_exc(self, 1, inputs)
 
-    def match(self, obj, iview=VIEW_INT, oview=None, check_level=False, match_miss=False):
+    def match(self, obj, iview=VIEW.INT, oview=None, check_level=False, match_miss=False):
         inp = self.input_view(posname(1))
         return inp.func_EQ(obj)  # compare obj to arg of (EQ)
 
@@ -477,9 +499,9 @@ class NEQ(Qualifier):
     def valid_input(self):
         inputs = self.num_pos_inputs()
         if inputs != 1:
-            raise InvalidNumberOfInputsException(self, 1, inputs)
+            raise InvalidNumberOfInputsException.make_exc(self, 1, inputs)
 
-    def match(self, obj, iview=VIEW_INT, oview=None, check_level=False, match_miss=False):
+    def match(self, obj, iview=VIEW.INT, oview=None, check_level=False, match_miss=False):
         inp = self.input_view(posname(1))
         return inp.func_NEQ(obj)  # compare obj to arg of (NEQ)
 
@@ -495,9 +517,9 @@ class LIKE(Qualifier):
     def valid_input(self):
         inputs = self.num_pos_inputs()
         if inputs != 1:
-            raise InvalidNumberOfInputsException(self, 1, inputs)
+            raise InvalidNumberOfInputsException.make_exc(self, 1, inputs)
 
-    def match(self, obj, iview=VIEW_INT, oview=None, check_level=False, match_miss=False):
+    def match(self, obj, iview=VIEW.INT, oview=None, check_level=False, match_miss=False):
         inp = self.input_view(posname(1))
         return inp.func_LIKE(obj)  # compare obj to arg of (LIKE)
         # e.g. ...name=LIKE(PersonName(john))  -> at match time we'll use PersonName(john).func_LIKE(ref)
@@ -514,9 +536,9 @@ class TRUE(Qualifier):
     def valid_input(self):
         inputs = self.num_pos_inputs()
         if inputs != 1:
-            raise InvalidNumberOfInputsException(self, 1, inputs)
+            raise InvalidNumberOfInputsException.make_exc(self, 1, inputs)
 
-    def match(self, obj, iview=VIEW_INT, oview=None, check_level=False, match_miss=False):
+    def match(self, obj, iview=VIEW.INT, oview=None, check_level=False, match_miss=False):
         return True
 
 
@@ -532,9 +554,9 @@ class FALSE(Qualifier):
     def valid_input(self):
         inputs = self.num_pos_inputs()
         if inputs != 1:
-            raise InvalidNumberOfInputsException(self, 1, inputs)
+            raise InvalidNumberOfInputsException.make_exc(self, 1, inputs)
 
-    def match(self, obj, iview=VIEW_INT, oview=None, check_level=False, match_miss=False):
+    def match(self, obj, iview=VIEW.INT, oview=None, check_level=False, match_miss=False):
         return False
 
 
@@ -545,7 +567,7 @@ class MIN(Aggregator):
     def valid_input(self):
         inputs = self.num_pos_inputs()
         if inputs == 0:
-            raise InvalidNumberOfInputsException(self, 'at least one', inputs)
+            raise InvalidNumberOfInputsException.make_exc(self, 'at least one', inputs)
         raise NotImplementedYetDFException('MIN not implemented yet', self)  # TODO: need to think if/how to use this
 
 
@@ -556,7 +578,7 @@ class MAX(Aggregator):
     def valid_input(self):
         inputs = self.num_pos_inputs()
         if inputs == 0:
-            raise InvalidNumberOfInputsException(self, 'at least one', inputs)
+            raise InvalidNumberOfInputsException.make_exc(self, 'at least one', inputs)
         raise NotImplementedYetDFException('MAX not implemented yet', self)  # TODO: need to think if/how to use this
 
 
@@ -567,7 +589,7 @@ class LAST(Aggregator):
     def valid_input(self):
         inputs = self.num_pos_inputs()
         if inputs == 0:
-            raise InvalidNumberOfInputsException(self, "at least one", inputs)
+            raise InvalidNumberOfInputsException.make_exc(self, "at least one", inputs)
         raise NotImplementedYetDFException('LAST not implemented yet', self)  # TODO: need to think if/how to use this
 
 
@@ -583,15 +605,23 @@ class SET(Aggregator):
     def valid_input(self):
         inputs = self.num_pos_inputs()
         if inputs == 0:
-            raise InvalidNumberOfInputsException(self, "at least one", inputs)
+            raise InvalidNumberOfInputsException.make_exc(self, "at least one", inputs)
 
     # for now - treat SET in reference constraint like an AND
-    def match(self, obj, iview=VIEW_INT, oview=None, check_level=False, match_miss=False):
+    def match(self, obj, iview=VIEW.INT, oview=None, check_level=False, match_miss=False):
         for nm in self.inputs:
             inp = self.input_view(nm)
             if not inp.match(obj, check_level=check_level, match_miss=match_miss):
                 return False
         return True
+
+    def describe(self, params=None):
+        values, objs = [], []
+        for i in range(1, self.num_pos_inputs() + 1):
+            m = self.input_view(posname(i)).describe(params=params)
+            values.append(m.text)
+            objs += m.objects
+        return Message(f"{{{' NL '.join(values)}}}", objects=objs)
 
 
 # #################################################################################################################
@@ -633,9 +663,9 @@ class TEE(Aggregator):
     def valid_input(self):
         inputs = self.num_pos_inputs()
         if inputs != 1:
-            raise InvalidNumberOfInputsException(self, 1, inputs)
+            raise InvalidNumberOfInputsException.make_exc(self, 1, inputs)
 
-    def match(self, obj, iview=VIEW_INT, oview=None, check_level=False, match_miss=False):
+    def match(self, obj, iview=VIEW.INT, oview=None, check_level=False, match_miss=False):
         inp = self.input_view(posname(1))
         return inp.match(obj, check_level=check_level, match_miss=match_miss)
 
@@ -662,7 +692,7 @@ class MODE(Modifier):
     def valid_input(self):
         inputs = self.num_pos_inputs()
         if inputs != 1:
-            raise InvalidNumberOfInputsException(self, 1, inputs)
+            raise InvalidNumberOfInputsException.make_exc(self, 1, inputs)
 
 
 class BLOCK(Operator):
@@ -677,7 +707,7 @@ class BLOCK(Operator):
     def valid_input(self):
         inputs = self.num_pos_inputs()
         if inputs != 1:
-            raise InvalidNumberOfInputsException(self, 1, inputs)
+            raise InvalidNumberOfInputsException.make_exc(self, 1, inputs)
 
 
 # #################################################################################################################
@@ -694,7 +724,7 @@ class ANDf(Node):
     def valid_input(self):
         inputs = self.num_pos_inputs()
         if inputs < 1:
-            raise InvalidNumberOfInputsException(self, 'at least one', inputs)
+            raise InvalidNumberOfInputsException.make_exc(self, 'at least one', inputs)
 
     def exec(self, all_nodes=None, goals=None):
         r = True
@@ -715,7 +745,7 @@ class ORf(Node):
     def valid_input(self):
         inputs = self.num_pos_inputs()
         if inputs < 1:
-            raise InvalidNumberOfInputsException(self, 'at least one', inputs)
+            raise InvalidNumberOfInputsException.make_exc(self, 'at least one', inputs)
 
     def exec(self, all_nodes=None, goals=None):
         r = 'False'
@@ -736,7 +766,7 @@ class NOTf(Node):
     def valid_input(self):
         inputs = self.num_pos_inputs()
         if inputs != 1:
-            raise InvalidNumberOfInputsException(self, 1, inputs)
+            raise InvalidNumberOfInputsException.make_exc(self, 1, inputs)
 
     def exec(self, all_nodes=None, goals=None):
         r = not self.get_dat(posname(1))
@@ -748,13 +778,14 @@ class Qualifierf(Node):
 
     def yield_msg(self, params=None):
         message = 'Yes.' if self.res.dat else 'No.'
-
+        obj = []
         for value in self.inputs.values():
             if value.data is None:
                 message += ' '
-                message += value.yield_msg(params)
-
-        return message
+                m = value.yield_msg(params)
+                message += m.text
+                obj += m.objects
+        return Message(message, objects=obj)
 
 
 class LTf(Qualifierf):
@@ -766,7 +797,7 @@ class LTf(Qualifierf):
     def valid_input(self):
         inputs = self.num_pos_inputs()
         if inputs != 2:
-            raise InvalidNumberOfInputsException(self, 2, inputs)
+            raise InvalidNumberOfInputsException.make_exc(self, 2, inputs)
 
     def exec(self, all_nodes=None, goals=None):
         n1, n2 = self.input_view(posname(1)), self.input_view(posname(2))
@@ -784,7 +815,7 @@ class GTf(Qualifierf):
     def valid_input(self):
         inputs = self.num_pos_inputs()
         if inputs != 2:
-            raise InvalidNumberOfInputsException(self, 2, inputs)
+            raise InvalidNumberOfInputsException.make_exc(self, 2, inputs)
 
     def exec(self, all_nodes=None, goals=None):
         n1, n2 = self.input_view(posname(1)), self.input_view(posname(2))
@@ -802,7 +833,7 @@ class GEf(Qualifierf):
     def valid_input(self):
         inputs = self.num_pos_inputs()
         if inputs != 2:
-            raise InvalidNumberOfInputsException(self, 2, inputs)
+            raise InvalidNumberOfInputsException.make_exc(self, 2, inputs)
 
     def exec(self, all_nodes=None, goals=None):
         n1, n2 = self.input_view(posname(1)), self.input_view(posname(2))
@@ -820,7 +851,7 @@ class LEf(Qualifierf):
     def valid_input(self):
         inputs = self.num_pos_inputs()
         if inputs != 2:
-            raise InvalidNumberOfInputsException(self, 2, inputs)
+            raise InvalidNumberOfInputsException.make_exc(self, 2, inputs)
 
     def exec(self, all_nodes=None, goals=None):
         n1, n2 = self.input_view(posname(1)), self.input_view(posname(2))
@@ -838,7 +869,7 @@ class EQf(Qualifierf):
     def valid_input(self):
         inputs = self.num_pos_inputs()
         if inputs != 2:
-            raise InvalidNumberOfInputsException(self, 2, inputs)
+            raise InvalidNumberOfInputsException.make_exc(self, 2, inputs)
 
     def exec(self, all_nodes=None, goals=None):
         n1, n2 = self.input_view(posname(1)), self.input_view(posname(2))
@@ -856,7 +887,7 @@ class NEQf(Qualifierf):
     def valid_input(self):
         inputs = self.num_pos_inputs()
         if inputs != 2:
-            raise InvalidNumberOfInputsException(self, 2, inputs)
+            raise InvalidNumberOfInputsException.make_exc(self, 2, inputs)
 
     def exec(self, all_nodes=None, goals=None):
         n1, n2 = self.input_view(posname(1)), self.input_view(posname(2))
@@ -874,7 +905,7 @@ class LIKEf(Node):
     def valid_input(self):
         inputs = self.num_pos_inputs()
         if inputs != 2:
-            raise InvalidNumberOfInputsException(self, 2, inputs)
+            raise InvalidNumberOfInputsException.make_exc(self, 2, inputs)
 
     def exec(self, all_nodes=None, goals=None):
         n1, n2 = self.input_view(posname(1)), self.input_view(posname(2))

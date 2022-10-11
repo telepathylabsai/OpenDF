@@ -40,7 +40,7 @@ class AliasODict(OrderedDict):
 
     def __init__(self, mapping=(), **kwargs):
         super(AliasODict, self).__init__(self._process_args(mapping, **kwargs))
-        self.aliases = {}
+        self.aliases = {}  # we actually copy the aliases from the signature (in node_factory, after creating the node)
 
     def __getitem__(self, k):
         return super(AliasODict, self).__getitem__(self.real_name(k))
@@ -89,16 +89,22 @@ class AliasODict(OrderedDict):
         """
         return k in self and k not in self.aliases
 
-    def duplicate(self):
+    def duplicate(self, reorder=None):
         """
         Creates a copy of this dictionary.
 
+        :param reorder: if given, the newly created AliasODict will use this order of inputs
+           (reorder should contain ALL input names)
         :return: the copy of this dictionary.
         :rtype: "AliasODict"
         """
         d = AliasODict()
-        for i in self:
-            d[i] = self[i]
+        if reorder:
+            for i in reorder:
+                d[i] = self[i]
+        else:
+            for i in self:
+                d[i] = self[i]
         for i in self.aliases:
             d.aliases[i] = self.aliases[i]
         return d
@@ -130,7 +136,9 @@ class InputParam:
         return isinstance(self.type, list)
 
     def match_type(self, t):
-        return True if t == self.type or isinstance(self.type, list) and t in self.type else False
+        tp = tuple(self.type) if isinstance(self.type, list) else self.type
+        return issubclass(t, tp)
+        # return True if t == self.type or isinstance(self.type, list) and t in self.type else False
 
     # True if ANY of the types in the list match
     def match_types(self, ts):
@@ -176,13 +184,19 @@ class Signature(OrderedDict):
         self.key_index = {}
         self.multi_res = False  # can the result of this node be multiple objects?
         # True: yes (but not necessarily always), False: never, None: not applicable, or not clear
+        # input order/dependency - maybe put this in node?
+        # for now, assuming that this is static per node type - so no need to store/copy this.
+        self.allow_reorder = True  # opt in
+                                    # allow auto reorder of inputs (e.g. on revise, to raise more recent inputs)
+        self.inp_dep = []  # list of input pairs which are not allowed to be changed
+                             # - implicit/indirect dependencies between inputs
 
     def add_sig(self, name, typ,
                 oblig=False,  # obligatory parameter - complain if not given
                 multi=False,  # (unused) - mark this input as conceptually able to represent multiple objects
                 #   e.g. a person has one unique ID, but may have many cars
                 excl_match=False,  # exclude this input from matching
-                view=VIEW_EXT,
+                view=VIEW.EXT,
                 ptags=None,
                 match_miss=False,  # during match, if missing and match got the match_miss flag, then will match
                 prop=False,  # is property (not a "real" input) - similar to python's property
@@ -209,9 +223,9 @@ class Signature(OrderedDict):
         return self[name].get_first_type_name()
 
     def allows_prm(self, nm):
-        if nm in self or nm in ['_aka', '_out_type']:
+        if nm in self or nm in ['_aka', '_out_type', '_inp']:
             return True
-        if is_pos(nm) and POS in self:  # TODO: check if it still used
+        if is_pos(nm) and POS in self:
             return True
         if nm in self.aliases:
             return True

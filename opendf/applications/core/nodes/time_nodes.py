@@ -4,9 +4,9 @@ Core time nodes.
 
 from typing import Tuple
 
-from opendf.applications.smcalflow.stub_data import HOLIDAYS
+# from opendf.applications.smcalflow.domain import HOLIDAYS
 from opendf.exceptions.debug_exception import DebugDFException
-from opendf.exceptions.df_exception import InvalidOptionException, MissingValueException, InvalidResultException
+from opendf.exceptions.df_exception import DFException, InvalidOptionException, MissingValueException, InvalidResultException
 from opendf.applications.core.exceptions.python_exception import CalendarException
 from opendf.graph.nodes.framework_operators import EQ, LE, GE, LT, GT
 from opendf.graph.nodes.framework_objects import *
@@ -17,7 +17,7 @@ from calendar import monthrange
 
 from opendf.utils.database_utils import get_database_handler
 from opendf.utils.utils import id_sexp, str_to_datetime
-from opendf.defs import get_system_date, posname, get_system_datetime
+from opendf.defs import get_system_date, posname, get_system_datetime, Message
 
 TIME_NODE_NAMES = ['DateTime', 'Date', 'Time', 'DateRange', 'TimeRange', 'DateTimeRange']
 
@@ -27,6 +27,13 @@ monthname = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct
 monthname_full = ['January', 'February', 'March', 'April', 'May', 'June',
                   'July', 'August', 'September', 'October', 'November', 'December']
 
+
+HOLIDAYS = {
+    (1, 1): "NewYearsDay",
+    (5, 1): "TestDay",  # test purpose
+    (25, 12): "Christmas",
+    (31, 12): "NewYearsEve"
+}
 
 def last_month_day(yr, mn):
     """
@@ -131,6 +138,10 @@ def name_to_dow(nm):
 
 
 def name_to_month(nm):
+    if isinstance(nm, int):
+        if 1<=nm<=12:
+            return nm
+        raise CalendarException('Bad month : %d' % nm)
     for i, d in enumerate(monthname_full):
         if d.lower() == nm.lower() or (len(nm) == 3 and nm.lower() == d[:3].lower()):
             return i + 1
@@ -203,7 +214,7 @@ def describe_Pdatetime(t):
 def Pdatetime_to_sexp(t):
     if isinstance(t, str):
         t = datetime.strptime(t, "%Y-%m-%d %H:%M:%S")
-    y, m, d, h, mi = t.year, t.month, t.day, t.hour, t.minute
+    y, m, d, h, mi, wd = Pdatetime_to_values(t)
     return 'DateTime(date=Date(year=%d, month=%d, day=%d), time=Time(hour=%d, minute=%d))' % (y, m, d, h, mi)
 
 
@@ -279,7 +290,8 @@ class Time(Node):
         self.valid_h_m()
 
     def describe(self, params=None):
-        return self.to_partialDateTime().describe_time()
+        t = self.to_partialDateTime().describe_time()
+        return Message(t, objects=['DT#'+t])
 
     # node is a "real" object, with all values given (and are leaf nodes)
     def is_specific(self):
@@ -363,7 +375,7 @@ class DayOfWeek(Node):
                 if dt.lower() not in dd:
                     raise InvalidOptionException("DayOfWeek", dt, days_of_week, self)
         else:
-            raise MissingValueException(posname(1), self)
+            raise MissingValueException.make_exc(posname(1), self)
 
     def func_EQ(self, ref, op=None, mode=None):
         sl, rf = self.get_dat(posname(0)), ref.get_dat(posname(0))
@@ -410,6 +422,29 @@ class Range(Node):
         return selection
 
 
+class Month(Node):
+    def __init__(self):
+        super().__init__(type(self))
+        self.signature.add_sig(posname(1), [Str, Int], True)
+
+    def valid_input(self):
+        m = self.get_dat(posname(1))
+        if isinstance(m, int) and m<1 or m>12:
+            raise DFException('Bad Month %d' % m, self)
+        elif isinstance(m, str) and m not in monthname_full + monthname:
+            raise DFException('Bad Month %s' % m, self)
+        raise DFException('Bad Month %s' % m, self)
+
+    def exec(self, all_nodes=None, goals=None):
+        m = self.get_dat(posname(1))
+        if isinstance(m, int):
+            self.set_result(self.input_view(posname(1)))
+        elif isinstance(m, str):
+            g, _ = self.call_construct_eval('Int(%d)' % name_to_month(m), self.context)
+            self.set_result(g)
+
+
+
 class Date(Node):
     """
     Date: year, month, day, [dayOfWeek].
@@ -421,7 +456,6 @@ class Date(Node):
         self.signature.add_sig('month', Int, match_miss=True)
         self.signature.add_sig('day', Int, match_miss=True)
         self.signature.add_sig('dow', DayOfWeek, match_miss=True)
-        self.signature.add_sig('dayOfWeek', DayOfWeek, match_miss=True, prop=True)
 
     def generate_sql_where(self, selection, parent_id, **kwargs):
         qualifier = kwargs.get("qualifier", EQ())
@@ -474,13 +508,13 @@ class Date(Node):
     def describe(self, params=None):
         s = self.special_day()
         if s:
-            return s
+            return Message(s, objects=['DT#'+s])
         params = params if params else []
         dd = [self.get_dat(i) for i in ['year', 'month', 'day']]
         s = '.'.join([str(i) if i else '?' for i in dd])
         if self.get_dat('dayOfWeek') and 'compact' not in params:
             s = self.get_dat('dayOfWeek') + '  ' + s
-        return s
+        return Message(s, objects=['DT#'+s])
 
     def get_missing_value(self, nm, as_node=True):
         if nm == 'dow':
@@ -554,15 +588,16 @@ class Date(Node):
     def to_P(self):
         return self.to_Pdate()
 
-    def getattr_yield_msg(self, attr, val=None):
+    def getattr_yield_msg(self, attr, val=None, plural=None, params=None):
         yr, mn, dy, dw = self.get_date_values()
         if attr == 'month':
             if mn is not None:
-                return monthname_full[mn - 1]
-        if attr in ['dow', 'dayOfWeek']:
+                v = monthname_full[mn - 1]
+                return Message(v, objects=['DT%'+v])
+        if attr == 'dow':
             if dw is not None:
-                return dw
-                # return days_of_week[dw - 1]
+                v = days_of_week[dw - 1]
+                return Message(v, objects=['DT%'+v])
         return super(type(self), self).getattr_yield_msg(attr, val)
 
 
@@ -696,7 +731,7 @@ class DateTime(Node):
             if 'add_prep' in params:
                 s += ' at'
             s += ' %d:%s' % (hr, mt)
-        return s
+        return Message(s, objects=['DT%'+s])
 
     # assuming simple object - ignoring qualifiers
     def get_datetime_values(self, with_wd=True):
@@ -764,12 +799,12 @@ class DateTime(Node):
                 return r
             return None
 
-    def getattr_yield_msg(self, attr, val=None):
+    def getattr_yield_msg(self, attr, val=None, plural=None, params=None):
         if attr == 'dow':
             d = self.input_view('date')
             if d:
-                r = d.describe()
-                return r + ' is ' + val
+                m = d.describe()
+                return Message(m.text + ' is ' + val, objects=m.objects)
         return super(type(self), self).getattr_yield_msg(attr, val)
 
     def overwrite_values(self, yr=None, mn=None, dy=None, dw=None, hr=None, mt=None, Pdt=None):
@@ -1056,6 +1091,9 @@ def trans_to_DateTime(nd, inp_nm):
 
 
 def datetime_to_domain_str(n):
+    if isinstance(n, datetime):
+        vals = Pdatetime_to_values(n)[:-1]
+        return '%d/%d/%d/%d/%d' % vals
     return '%d/%d/%d/%d/%d' % (n.get_datetime_values(with_wd=False))
 
 
@@ -1067,11 +1105,16 @@ def datetime_node_to_datetime(n):
     return str_to_datetime(datetime_to_domain_str(n))
 
 
-def time_sexp(hr, mt, allow_constr=True):
+def time_sexp(hr, mt, allow_constr=True, mr=None):
     tc = '?' if allow_constr and (hr is None or mt is None) else ''
     s = 'Time%s(' % tc
     p = []
     if hr is not None:
+        if mr:
+            if 'am' in mr.lower():
+                hr = hr%12
+            else:
+                hr = 12 + hr%12
         p.append('hour=%d' % hr)
     if mt is not None:
         p.append('minute=%d' % mt)
@@ -1086,6 +1129,8 @@ def date_sexp(yr, mn, dy, dw=None, allow_constr=True):
     if yr is not None or not dc:
         p.append('year=%d' % yr)
     if mn is not None:
+        if isinstance(mn, str):
+            mn = name_to_month(mn)
         p.append('month=%d' % mn)
     if dy is not None:
         p.append('day=%d' % dy)

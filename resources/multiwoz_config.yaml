@@ -1,0 +1,3 @@
+environment_class: !!python/object:opendf.applications.MultiWOZEnvironment
+  d_context: null
+  simplification: false

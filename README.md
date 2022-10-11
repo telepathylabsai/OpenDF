@@ -1,4 +1,4 @@
-# OpenDF 
+# OpenDF
 ### Open Pythonic Dataflow Dialogue Framework
 
 The use of the dataflow paradigm for dialogue systems has been introduced by Microsoft's Semantic Machines in the paper
@@ -42,10 +42,12 @@ In addition, see our LREC-2022 paper [Simplifying Semantic Annotations of SMCalF
 
 See also this very good [blog from Semantic Machines](https://www.microsoft.com/en-us/research/group/msai/articles/designing-a-framework-for-conversational-interfaces/).
 
+NEW - see [this document](opendf/applications/multiwoz_2_2/MultiWOZ_DF.md) about the MultiWOZ-DF implementation in our upcoming paper "MultiWOZ-DF"
+
 ## Installation
 
-The system mainly depends on the libraries listed in the requirements.txt file. These dependencies can be installed in
-your environment by running:
+The system should run on Python version 3.8 or above. It mainly depends on the libraries listed in the 
+requirements.txt file. These dependencies can be installed in your environment by running:
 
 ```
 pip install -r requirements.txt
@@ -79,7 +81,6 @@ own example file, which are: `opendf/examples/examples.py`, `opendf/examples/sim
 `opendf/examples/text_examples.py`, respectively.
 
 You can define your own Nodes in the playground file: `opendf/applications/sandbox/sandbox.py`
-
 
 ### Example
 
@@ -134,6 +135,4 @@ The image might be slight different, depending on the type of nodes that are con
 
 ## Cite
 
-
 If you use this work, please cite our LREC-2022 paper [Simplifying Semantic Annotations of SMCalFlow](https://sigsem.uvt.nl/isa18/ISA-18_25_Paper.pdf).
-

@@ -165,7 +165,7 @@ class TestPExpParser(unittest.TestCase):
         self.assertEqual(expected, trees)
 
     def test_expression_8(self):
-        expression = "$#123 $my_ref $#-456 Str(#this{is}a node with a complex   string  )"
+        expression = "$#123 $my_ref $#-456 Str(#this{is}a node with a complex  string  )"
         expected = [
             ASTNode("123", is_assign=True),
             ASTNode("my_ref", is_assign=True),

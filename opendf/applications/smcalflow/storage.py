@@ -1,5 +1,5 @@
 """
-Class to define an interface to interact with the smcalflow storage.
+Class to define an interface to interact with the SMCalFlow storage.
 """
 
 from abc import ABC, abstractmethod

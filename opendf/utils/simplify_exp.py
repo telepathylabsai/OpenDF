@@ -6,6 +6,8 @@ from opendf.utils.sexp import parse_sexp
 from opendf.parser.pexp_parser import escape_string
 import re
 
+from opendf.defs import simplify_MultiWoz
+
 func_map = {
     '?=': 'EQ',
     '==': 'EQf',
@@ -27,6 +29,7 @@ func_map = {
 }
 
 
+
 def trans_func(func, no_constr=False):
     if func.startswith('Constraint[Constraint['):
         func = re.sub('[\[\]]', ' ', func).split()[-1] + ('' if no_constr else '??')
@@ -42,6 +45,8 @@ def trans_func(func, no_constr=False):
         func = re.sub(']', '', func)
     if func in func_map:
         func = func_map[func]
+    if simplify_MultiWoz:
+        func = re.sub('-', '_', func)
 
     return func
 
@@ -49,9 +54,13 @@ def trans_func(func, no_constr=False):
 def get_args(prs, no_constr=False):
     while isinstance(prs, list) and len(prs) == 1:
         prs = prs[0]
+    org_prs = prs
     if not isinstance(prs, list):
         prs = escape_string(reduce_quotes(prs))
         prs = [prs]
+
+    if simplify_MultiWoz and isinstance(prs, list) and len(prs)==2 and isinstance(prs[1], str) and prs[1].startswith('"') and prs[0]!= 'String':
+        prs = [prs[0], '#', ['String', org_prs[1]]]
 
     is_leaf = False
     if prs[0] == '#':
@@ -62,8 +71,8 @@ def get_args(prs, no_constr=False):
         is_leaf = True
 
     func = prs[0]
-
     args = {}
+
     pos = 1
     if len(prs) > 1:
         i = 1
@@ -175,6 +184,10 @@ def print_tree(node):
         r = print_tree(node.inputs[i])
         inps.append(j + r)
     if inps:
+        if simplify_MultiWoz and t== 'String' and len(inps)==1:
+            return inps[0]
+        if simplify_MultiWoz and t== 'EQ':
+            return inps[0]
         return t + '(' + ', '.join(inps) + ')'
     if node.is_data():
         if t and t[0]=='#':
