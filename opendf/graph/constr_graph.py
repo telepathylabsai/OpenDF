@@ -246,6 +246,8 @@ def ast_top_down_construct(ast, parent, d_context, register=True, top_only=False
                 tps = parent.signature.match_tnames(ast.role, base_types)
                 if tps:
                     if tp not in tps:
+                        if tp=='Str' and tps[0] in ['Int', 'Float']:
+                            raise SemanticException('Expected numeric input to %s.%s, got "%s"' % (ptyp, ast.role, typ))
                         tp = tps[0]
                 else:
                     tps = parent.signature.match_tnames(ast.role, node_fact.leaf_types)
