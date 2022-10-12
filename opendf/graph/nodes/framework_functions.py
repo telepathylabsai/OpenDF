@@ -40,7 +40,7 @@ environment_definitions = EnvironmentDefinition.get_instance()
 def get_refer_match(d_context, all_nodes0, goals0, is_ref_goal=False, parent=None, pos1=None, pos1view=None, role='',
                     mid=None, midId='', type='', cond=None, condview=None, midtype='', nid='', no_fallback=False,
                     force_fallback=False, multi=True, no_eval=True, match_miss=False, params=None,
-                    search_last_goal=True, merge_equiv=True, merge_equiv_res=True, avoid_nodes=None,
+                    search_last_goal=False, merge_equiv=True, merge_equiv_res=True, avoid_nodes=None,
                     belowtype=None):
     all_nodes = [n for n in all_nodes0] if all_nodes0 else []
     all_nodes = [n for n in all_nodes if not n.hide]
