@@ -2407,8 +2407,8 @@ class Node:
     #    is this too specific? (i.e. logic just for getattr)
     def getattr_yield_msg(self, attr, val=None, plural=None, params=None):
         if val:
-            return attr + ' : '  + val, []
-        return attr, []
+            return Message(attr + ' : '  + val)
+        return Message(attr)
 
     # ############################################################################################
     # ########################################### SQL  ###########################################
