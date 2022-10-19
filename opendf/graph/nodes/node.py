@@ -1659,10 +1659,11 @@ class Node:
         """
         Describes node in text. Override per type.
         """
-        if self.data:
-            return Message(str(self.data))
         if self.result != self:
             return self.result.describe(params)
+        dt = self.dat
+        if dt:
+            return Message(str(dt))
         return Message('')
 
     # base function - yielding message+objects from top node
