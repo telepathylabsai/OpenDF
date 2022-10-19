@@ -883,7 +883,8 @@ class Node:
             if tp.__name__ in node_fact.operators:  # in principle, obj should be a simple object without operators
                 tp = obj.get_op_type()
             if tp != type(self) and tp not in node_fact.operators:
-                return False
+                if not issubclass(tp, type(self)):
+                    return False
             if obj.is_operator():
                 os = obj.get_op_objects()
                 for o in os:
