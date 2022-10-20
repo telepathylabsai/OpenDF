@@ -2352,8 +2352,10 @@ class Node:
         else:
             otn = self.outypename()
             if otn not in otyp:  # if out type mismatches, wrap it with the desired type - it will be auto fixed later
-                parent.wrap_input(inp_nm, pref, suf=suf, register=register, iview=iview, do_eval=False,
-                                  do_trans_simp=do_trans_simp)
+                sup = [node_fact.node_types[i] for i in otyp if i != 'Node']
+                if not issubclass(type(self), tuple(sup)):
+                    parent.wrap_input(inp_nm, pref, suf=suf, register=register, iview=iview, do_eval=False,
+                                      do_trans_simp=do_trans_simp)
 
     # add objects to an input -
     # the input may currently have 0, 1, or multiple objects
