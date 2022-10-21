@@ -229,8 +229,10 @@ class Node:
         Gets the data for the selected view of the named input.
         """
         if inp not in self.inputs:
+            v = self.get_missing_value(inp, as_node=False)
+            return v  # todo - verify!
             # TODO: check for property? (as short-hand)
-            return None
+            # return None
         if self.get_view_mode(inp) == VIEW.INT:
             return self.inputs[inp].dat
         else:
@@ -240,6 +242,12 @@ class Node:
         inp = to_list(inp)
         dats = [self.get_dat(i) for i in inp]
         return dats[-1] if len(dats) == 1 else None if len(dats) == 0 else tuple(dats)
+
+    # similar, but return as dict
+    def get_dats_dict(self, inp):
+        inp = to_list(inp)
+        dats = {i:self.get_dat(i) for i in inp}
+        return dats
 
     def get_ext_view(self, txt):
         """
