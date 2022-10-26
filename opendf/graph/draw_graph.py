@@ -382,7 +382,7 @@ def draw_graphs(goals, ex, msg, id=0, ok=True, sexp=None, txt=None, simp=None, f
     if environment_definitions.summarize_typenames + hide_extra:
         for n in nodes:
             if n.typename() in environment_definitions.summarize_typenames:
-                node_names[n] = reform_msg('%s=' % str(n.id) + n.describe_set(params=['compact']))
+                node_names[n] = reform_msg('%s=' % str(n.id) + n.describe_set(params=['compact']).text)
     f = Digraph('Graph', filename='tmp/graph.gv') if f is None else f
     dir = 'BT' if environment_definitions.draw_vert else 'LR'
     f.attr(rankdir=dir, size='8,5', ranksep="0.02")
