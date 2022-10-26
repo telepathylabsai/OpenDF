@@ -121,8 +121,8 @@ def get_lab_name(s, nd):
         s = s[len('summarize'):]
         summ = True
     n, b = s.split('=') if s.count('=')==1 else (s, '?') if '=' not in s else (s.split('=')[0], ':'.join(s.split('=')[1:]))
-    if summ:
-        b = re.sub('_', ' ', re.sub('/', '<BR/>', b))
+    # if summ:
+    #     b = re.sub('_', ' ', re.sub('/', '<BR/>', b))
     tgs = [i for i in list(nd.tags.keys()) if TAG_NO_SHOW not in i] if environment_definitions.show_tags else []
     if nd.constraint_level > 0:
         tgs = [t for t in tgs if t not in nd.type_tags and TAG_NO_SHOW not in t] if environment_definitions.show_tags \
@@ -145,6 +145,8 @@ def get_lab_name(s, nd):
     sptg = "<font point-size='12'><sup>%s</sup></font>" % ','.join(ptg) if ptg else ''
     snum = "<font point-size='9'><sub>%s</sub></font>" % n if environment_definitions.show_node_id else ''
     b = fix_chars(b)
+    if summ:
+        b = re.sub('_', ' ', re.sub('/', '<BR/>', b))
     lb = '<' + ass + stg + b + sptg + snum + '>'
     return lb
 
@@ -382,7 +384,9 @@ def draw_graphs(goals, ex, msg, id=0, ok=True, sexp=None, txt=None, simp=None, f
     if environment_definitions.summarize_typenames + hide_extra:
         for n in nodes:
             if n.typename() in environment_definitions.summarize_typenames:
-                node_names[n] = reform_msg('%s=' % str(n.id) + n.describe_set(params=['compact']).text)
+                # node_names[n] = reform_msg('%s=' % str(n.id) + n.describe_set(params=['compact']).text)
+                node_names[n] = reform_msg('%s=' % str(n.id) +
+                                           ' / '.join(split_len(n.describe_set(params=['compact']).text, 25)))
     f = Digraph('Graph', filename='tmp/graph.gv') if f is None else f
     dir = 'BT' if environment_definitions.draw_vert else 'LR'
     f.attr(rankdir=dir, size='8,5', ranksep="0.02")
