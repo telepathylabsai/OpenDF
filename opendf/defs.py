@@ -63,6 +63,18 @@ class Message:
         self.objects = objects if objects else []
         self.turn = turn
 
+    def updated_message(self, text=None, node=None, objects=None, turn=None):
+        m = Message(self.text, self.node, self.objects, self.turn)
+        if text is not None:
+            m.text = text
+        if node is not None:
+            m.node = node
+        if objects is not None:
+            m.objects = objects
+        if turn is not None:
+            m.turn = turn
+        return m
+
 
 class EnvironmentDefinition:
     """
