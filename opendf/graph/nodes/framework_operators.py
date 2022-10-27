@@ -14,7 +14,7 @@ from sqlalchemy import or_, select, not_, and_
 from sqlalchemy.sql import Join
 from opendf.defs import VIEW, POS, is_pos, posname, Message
 from opendf.exceptions.df_exception import InvalidNumberOfInputsException, NotImplementedYetDFException, \
-    InvalidResultException
+    InvalidResultException, ElementNotFoundException
 from opendf.utils.utils import flatten_list
 from opendf.graph.nodes.framework_objects import Bool, Str
 from opendf.graph.nodes.node import Node
@@ -475,6 +475,17 @@ class FN(Qualifier):
             if o:
                 base = o[0]
         return base.func_FN(obj, fname=fname, farg=farg)
+
+    def search_error_message(self, node):
+        fname = self.get_dat('fname')
+        farg = self.input_view('farg')
+        base = farg
+        if farg and farg.is_operator():
+            o = farg.get_op_object()
+            if o:
+                base = o[0]
+        tp = base.typename()
+        return ElementNotFoundException("Search for %s(%s) did not return any results" % (fname,tp), node)
 
 
 class EQ(Qualifier):
