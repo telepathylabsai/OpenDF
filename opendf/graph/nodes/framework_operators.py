@@ -469,7 +469,12 @@ class FN(Qualifier):
     def match(self, obj, iview=VIEW.INT, oview=None, check_level=False, match_miss=False):
         fname = self.get_dat('fname')
         farg = self.input_view('farg')
-        return farg.func_FN(obj, fname=fname, farg=farg)
+        base = farg
+        if farg and farg.is_operator():
+            o = farg.get_op_object()
+            if o:
+                base = o[0]
+        return base.func_FN(obj, fname=fname, farg=farg)
 
 
 class EQ(Qualifier):
