@@ -1530,7 +1530,7 @@ class Node:
 
     def singleton_multi_error(self, matches):
         m = Node.describe_multi(matches)
-        return m.updated_message(text='Multiple %s objects' % self.typename() + ' NL ' + m.text)
+        return 'Multiple %s objects' % self.typename() + ' NL ' + m.text
 
     def singleton_no_match_error(self):
         return 'Singleton error - no matching %s objects' % self.typename()
