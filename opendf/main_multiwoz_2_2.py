@@ -551,6 +551,7 @@ def load_patch(nm):
 if __name__ == '__main__':
     start = time.time()
     try:
+        write_state = False
         parser = create_arguments_parser()
         arguments = parser.parse_args()
         config_log(level=arguments.log)
