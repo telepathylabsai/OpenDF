@@ -209,7 +209,7 @@ def has_one_term(s):
 
 # indent sexp for pretty printing.
 #  org_sexp - mode for indenting original-style expressions - not quite there, but good enough...
-def indent_sexp(tt, org_sexp=False):
+def indent_sexp(tt, org_sexp=False, sep_brack=False):
     if not tt:
         return tt
     t = re.sub('[\n\t ]+', ' ', tt)
@@ -226,6 +226,8 @@ def indent_sexp(tt, org_sexp=False):
         c = t[i]
         if c == ')':
             p -= ind
+            if sep_brack:
+                s += '\n' + ' ' * p
             s += c
             prev_close = True
             start_param = False

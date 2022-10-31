@@ -89,7 +89,7 @@ def construct_graph(sexp, d_context, register=True, top_only=False, constr_tag=R
         prs = parse_p_expressions(sexp)
     except Exception as ex:
         if sexp and sexp.count('(')!=sexp.count(')'):
-            print('\n> > >Unbalanced brackets:\n\n' + indent_sexp(sexp) +  '\n')
+            print('\n> > >Unbalanced brackets:\n\n' + indent_sexp(sexp, sep_brack=True) + '\n')
         re_raise_exc(ex)
 
     try:
