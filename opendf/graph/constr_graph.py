@@ -7,6 +7,7 @@ from opendf.graph.node_factory import NodeFactory
 import re
 from opendf.defs import *
 from opendf.utils.utils import cast_str_val, get_type_and_clevel
+from opendf.utils.simplify_exp import indent_sexp
 from opendf.defs import is_pos, posname, posname_idx
 from opendf.exceptions import re_raise_exc
 from opendf.parser.pexp_parser import parse_p_expressions, ASTNode
@@ -83,8 +84,15 @@ def construct_graph(sexp, d_context, register=True, top_only=False, constr_tag=R
     # print('\n++++ : ' + sexp)
 
     d_context = d_context if d_context or register == False else DialogContext()
+
     try:
         prs = parse_p_expressions(sexp)
+    except Exception as ex:
+        if sexp and sexp.count('(')!=sexp.count(')'):
+            print('\n> > >Unbalanced brackets:\n\n' + indent_sexp(sexp) +  '\n')
+        re_raise_exc(ex)
+
+    try:
         root = ast_top_down_construct(prs[0], None, d_context, register=register, top_only=top_only,
                                       constr_tag=constr_tag)
     except Exception as ex:
