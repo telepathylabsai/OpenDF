@@ -42,7 +42,7 @@ In addition, see our LREC-2022 paper [Simplifying Semantic Annotations of SMCalF
 
 See also this very good [blog from Semantic Machines](https://www.microsoft.com/en-us/research/group/msai/articles/designing-a-framework-for-conversational-interfaces/).
 
-NEW - see [this document](opendf/applications/multiwoz_2_2/MultiWOZ_DF.md) about the MultiWOZ-DF implementation in our upcoming paper "MultiWOZ-DF"
+NEW - see [this document](opendf/applications/multiwoz_2_2/MultiWOZ_DF.md) about the MultiWOZ-DF implementation in our upcoming paper "MultiWOZ-DF - A Dataflow implementation of the MultiWOZ dataset"
 
 ## Installation
 

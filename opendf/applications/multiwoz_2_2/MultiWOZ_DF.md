@@ -1,7 +1,7 @@
 # MultiWOZ-DF - A Dataflow Implementation of MultiWOZ
 
 This page describes the dataflow implementation of MultiWOZ, and how to run the experiments described in our upcoming
-paper "MultiWOZ-DF".
+paper "MultiWOZ-DF - A Dataflow implementation of the MultiWOZ dataset".
 
 ## Data
 
