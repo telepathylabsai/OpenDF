@@ -42,7 +42,8 @@ In addition, see our LREC-2022 paper [Simplifying Semantic Annotations of SMCalF
 
 See also this very good [blog from Semantic Machines](https://www.microsoft.com/en-us/research/group/msai/articles/designing-a-framework-for-conversational-interfaces/).
 
-NEW - see [this document](opendf/applications/multiwoz_2_2/MultiWOZ_DF.md) about the MultiWOZ-DF implementation in our upcoming paper "MultiWOZ-DF - A Dataflow implementation of the MultiWOZ dataset"
+NEW - see [this document](opendf/applications/multiwoz_2_2/MultiWOZ_DF.md) about the MultiWOZ-DF implementation in our
+paper [MultiWOZ-DF - A Dataflow implementation of the MultiWOZ dataset](https://arxiv.org/pdf/2211.02303.pdf).
 
 ## Installation
 
@@ -136,3 +137,6 @@ The image might be slight different, depending on the type of nodes that are con
 ## Cite
 
 If you use this work, please cite our LREC-2022 paper [Simplifying Semantic Annotations of SMCalFlow](https://sigsem.uvt.nl/isa18/ISA-18_25_Paper.pdf).
+
+If you rever to our MultiWOZ implementation, please also cite our MultiWOZ-DF paper 
+[MultiWOZ-DF - A Dataflow implementation of the MultiWOZ dataset](https://arxiv.org/pdf/2211.02303.pdf).
