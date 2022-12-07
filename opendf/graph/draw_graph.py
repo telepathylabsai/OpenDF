@@ -64,7 +64,7 @@ def split_sexp(s):
     return "<" + '<BR ALIGN="LEFT"/>'.join(t) + '>'
 
 
-def gen_err_msg(ss, w=20, hints=None, sugg=None, fnt_sz=15):
+def gen_err_msg(ss, w=25, hints=None, sugg=None, fnt_sz=15):
     s = fix_chars(ss)
     msg = ''
     c = ''
@@ -102,7 +102,7 @@ def gen_split_NL(s, fntsz=25):
     return "< <font point-size='%d'>" % fntsz + s + '</font> >'
 
 
-def gen_exc_msg(e, w=20):
+def gen_exc_msg(e, w=25):
     s, nd, hints, sg = parse_node_exception(e)
     return gen_err_msg(s, w, hints, sg)
 
@@ -167,7 +167,7 @@ def saturate(c, fact=None):
 
 # TODO: do we still need this?
 def reform_msg(s):
-    return 'summarize' + re.sub('_NL_', '/',
+    return 'summarize' + re.sub('_NL_', '_NL_',
                                 re.sub(' ', '_', re.sub(',', '-', re.sub(':', CHAR_COLON, re.sub('&', CHAR_AND, s)))))
 
 
@@ -241,6 +241,8 @@ def do_draw_graph(ff, node_names, goals, excp=None, mesg=None, id_off=0, subgrap
     if not environment_definitions.sep_graphs or not subgraphs:
         subgraphs = [list(node_names.keys())] + [ex_nodes] + [list(msg_nodes.values())]
 
+    seen_goals = []
+
     for ig, subg in enumerate(subgraphs):
         with ff.subgraph(name='cluster_%d' % ig) as f:
             for n in subg:
@@ -280,14 +282,16 @@ def do_draw_graph(ff, node_names, goals, excp=None, mesg=None, id_off=0, subgrap
                     f.node(node_names[n], label=lb)
 
             if environment_definitions.show_goal_id:
-                for i, g in enumerate(goals):  # add numbered circles pointing to goals
+                ggg, iii = (goals, id_off) if False else (goals[0].context.goals, 0)
+                for i, g in enumerate(ggg):  # add numbered circles pointing to goals
                     if g in subg:
+                        seen_goals.append(g)
                         col = '#ffffcc' if g.typename() == 'revise' else '#ffff00'
                         col = '#ccffff' if g in g.context.other_goals else col
                         col = saturate(col)
                         f.attr('node', shape='circle', style='filled', color=col, fontsize='20.0', fontcolor='',
                                fillcolor='')
-                        f.node('##' + str(i + 1 + id_off), label=str(i + 1 + id_off))
+                        f.node('##' + str(i + 1 + iii), label=str(i + 1 + iii))
             if environment_definitions.show_tags and not environment_definitions.show_config:
                 i = 0
                 cl = saturate('#880088')
@@ -349,14 +353,19 @@ def do_draw_graph(ff, node_names, goals, excp=None, mesg=None, id_off=0, subgrap
             f.edge(node_names[n.dup_of], node_names[n])
 
     if environment_definitions.show_goal_id:
-        for i, g in enumerate(goals):  # add numbered circles pointing to goals
-            f.attr('edge', color=saturate('#00cccc'), style='', arrowhead='none', fontsize=fntsz, fontcolor='',
-                   fillcolor='')
-            f.edge(node_names[g], '##' + str(i + 1 + id_off))
-            if environment_definitions.show_goal_link and i > 0:
-                f.attr('edge', color=saturate('#ffff88'), style='', arrowhead='none', fontsize=fntsz, fontcolor='',
+        ggg, iii = (goals, id_off) if False else (goals[0].context.goals, 0)
+        prev_goal = -1
+        for i, g in enumerate(ggg):  # add numbered circles pointing to goals
+            if g in seen_goals:
+                curr_goal = i + 1 + iii
+                f.attr('edge', color=saturate('#00cccc'), style='', arrowhead='none', fontsize=fntsz, fontcolor='',
                        fillcolor='')
-                f.edge('##' + str(i + id_off), '##' + str(i + 1 + id_off))
+                f.edge(node_names[g], '##' + str(curr_goal))
+                if environment_definitions.show_goal_link and prev_goal > 0:
+                    f.attr('edge', color=saturate('#ffff88'), style='', arrowhead='none', fontsize=fntsz, fontcolor='',
+                           fillcolor='')
+                    f.edge('##' + str(prev_goal), '##' + str(curr_goal))
+                prev_goal = curr_goal
 
 
 def draw_graphs(goals, ex, msg, id=0, ok=True, sexp=None, txt=None, simp=None, f=None):
@@ -384,7 +393,7 @@ def draw_graphs(goals, ex, msg, id=0, ok=True, sexp=None, txt=None, simp=None, f
     if environment_definitions.summarize_typenames + hide_extra:
         for n in nodes:
             if n.typename() in environment_definitions.summarize_typenames:
-                # node_names[n] = reform_msg('%s=' % str(n.id) + n.describe_set(params=['compact']).text)
+                #node_names[n] = reform_msg('%s=' % str(n.id) + n.describe_set(params=['compact']).text)
                 node_names[n] = reform_msg('%s=' % str(n.id) +
                                            ' / '.join(split_len(n.describe_set(params=['compact']).text, 25)))
     f = Digraph('Graph', filename='tmp/graph.gv') if f is None else f
