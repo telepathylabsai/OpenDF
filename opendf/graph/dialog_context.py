@@ -109,6 +109,11 @@ class DialogContext:
         if g.typename() in unique_goal_types:
             self.goals = [i for i in self.goals if i!=g and i.typename()!=g.typename()] + [g]
 
+    def switch_goal_order(self, i1, i2):
+        n = len(self.goals)
+        if i1!=i2 and -n < i1 < n and -n < i2 < n:
+            self.goals[i1], self.goals[i2] = self.goals[i2], self.goals[i1]
+
     def remove_goal(self, g):
         self.goals = [i for i in self.goals if i != g]
 
@@ -129,6 +134,9 @@ class DialogContext:
 
     def clear_exceptions(self):
         self.exceptions = []
+
+    def get_node_exceptions(self, nd):
+        return [e for e in self.exceptions if e.node==nd]
 
     def set_prev_agent_turn(self, ex):
         if not self.continued_turn:
@@ -337,10 +345,8 @@ class DialogContext:
         for e in self.exceptions:
             if e.node in nodes:
                 # ee = type(e)(e.message, e.node.id, hints=e.hints, suggestions=e.suggestions, orig=e.orig, chain=e.chain)
-                try:
-                    ee = copy(e)
-                except Exception as ex:
-                    ee = copy(e)
+                # ee = e.dup()
+                ee = copy(e)
                 ee.node = e.node.id
                 pack.exceptions.append(ee)
 
@@ -388,6 +394,7 @@ class DialogContext:
         for e in self.exceptions:
             # ee = type(e)(e.message, unpack.idx_to_node[e.node], hints=e.hints,
             #              suggestions=e.suggestions, orig=e.orig, chain=e.chain)
+            # ee = e.dup()
             ee = copy(e)
             ee.node = unpack.idx_to_node[e.node]
             unpack.exceptions.append(ee)
@@ -402,7 +409,7 @@ class DialogContext:
         #     [(unpack.idx_to_node[nd_id], msg) for nd_id, msg in self.messages if nd_id in unpack.idx_to_node]
         unpack.messages = \
             [Message(m.text, unpack.idx_to_node[m.node], m.objects, m.turn) for m in self.messages
-             if m.node.id in unpack.idx_to_node]
+             if m.node in unpack.idx_to_node]
 
         return unpack
 

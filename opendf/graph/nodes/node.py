@@ -230,7 +230,7 @@ class Node:
         """
         if inp not in self.inputs:
             v = self.get_missing_value(inp, as_node=False)
-            return v  # todo - verify!
+            return v
             # TODO: check for property? (as short-hand)
             # return None
         if self.get_view_mode(inp) == VIEW.INT:
@@ -243,7 +243,6 @@ class Node:
         dats = [self.get_dat(i) for i in inp]
         return dats[-1] if len(dats) == 1 else None if len(dats) == 0 else tuple(dats)
 
-    # similar, but return as dict
     def get_dats_dict(self, inp):
         inp = to_list(inp)
         dats = {i:self.get_dat(i) for i in inp}
@@ -1119,7 +1118,7 @@ class Node:
             for name in self.signature:
                 p = self.signature[name]
                 if p.oblig and name not in self.inputs:
-                    raise MissingValueException.make_exc(name, self, hints=p.type_name())
+                    raise MissingValueException(name, self, hints=p.type_name())
 
         # 4. execute function (for non-type nodes)
         # this will set self.result
@@ -1644,9 +1643,10 @@ class Node:
         inps = []
         show_pos = False  # show name of pos param if input order does not respect it
         nn = len(self.inputs)
+        inp_nms = list(self.inputs.keys())
         for i in range(nn):
             for j in range(i+1, nn):
-                if is_pos(i) and is_pos(j) and posname_idx(i)>posname_idx(j):
+                if is_pos(inp_nms[i]) and is_pos(inp_nms[j]) and posname_idx(inp_nms[i])>posname_idx(inp_nms[j]):
                     show_pos=True
         for i in self.inputs:
             ss, seen = self.inputs[i].compr_tree(seen)
@@ -1853,6 +1853,8 @@ class Node:
     def get_op_type(self, no=None):
         """
         Gets ONE real object type DIRECTLY under current node.
+        TODO - in case we have e.g. a SET with multiple objects of different types, but all are subtypes of a single
+               type (e.g. Cube, Ball, Pyramid - all sub types of Block) - what should we return?
         """
         if self.is_operator():
             typ = self.get_op_types([])
@@ -2118,8 +2120,8 @@ class Node:
     # these functions are defined in a way to avoid circular dependencies, we hide the import inside the functions
 
     @staticmethod
-    def call_construct(sexp, d_context, register=True, top_only=False,
-                       constr_tag=RES_COLOR_TAG, no_post_check=False, do_trans_simp=False, no_exit=False):
+    def call_construct(sexp, d_context, register=True, top_only=False,constr_tag=RES_COLOR_TAG,
+                       no_post_check=False, do_trans_simp=False, no_exit=False, add_goal=False):
         """
         :return:
         :rtype: Tuple[Node, List[Exception]]
@@ -2131,6 +2133,8 @@ class Node:
             from opendf.graph.transform_graph import trans_graph
             g, e = trans_graph(g, add_yield=False)
 
+        if add_goal:
+            d_context.add_goal(g)
         return g, ex
 
     @staticmethod
@@ -2360,7 +2364,7 @@ class Node:
         else:
             otn = self.outypename()
             if otn not in otyp:  # if out type mismatches, wrap it with the desired type - it will be auto fixed later
-                sup = [node_fact.node_types[i] for i in otyp if i != 'Node']
+                sup = [node_fact.node_types[i] for i in otyp if i!='Node']
                 if not issubclass(type(self), tuple(sup)):
                     parent.wrap_input(inp_nm, pref, suf=suf, register=register, iview=iview, do_eval=False,
                                       do_trans_simp=do_trans_simp)

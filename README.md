@@ -1,10 +1,13 @@
 # OpenDF
 ### Open Pythonic Dataflow Dialogue Framework
 
-The use of the dataflow paradigm for dialogue systems has been introduced by Microsoft's Semantic Machines in the paper
-[Task oriented dialogue as dataflow synthesis](https://arxiv.org/abs/2009.11423), and a large dataset
+NEWLY ADDED - [dataflow application development tutorial](./app_dev_tutorial.pdf)
+ 
+This package is an implementation of (and interpretation) of the dataflow paradigm for dialogue systems which has been introduced by Microsoft's Semantic Machines in the paper
+[Task oriented dialogue as dataflow synthesis](https://arxiv.org/abs/2009.11423), and which was accompanied by a large dataset
 (SMCalFlow) of dataflow-annotated dialogues has been released in their
 [GitHub page](https://github.com/microsoft/task_oriented_dialogue_as_dataflow_synthesis).
+
 
 This novel approach looks very promising, but unfortunately has not received much attention to date, as seen by the lack
 of follow-up publications and use.
@@ -42,7 +45,7 @@ In addition, see our LREC-2022 paper [Simplifying Semantic Annotations of SMCalF
 
 See also this very good [blog from Semantic Machines](https://www.microsoft.com/en-us/research/group/msai/articles/designing-a-framework-for-conversational-interfaces/).
 
-NEW - see [this document](opendf/applications/multiwoz_2_2/MultiWOZ_DF.md) about the MultiWOZ-DF implementation in our
+Update - see [this document](opendf/applications/multiwoz_2_2/MultiWOZ_DF.md) about the MultiWOZ-DF implementation in our
 paper [MultiWOZ-DF - A Dataflow implementation of the MultiWOZ dataset](https://arxiv.org/pdf/2211.02303.pdf).
 
 ## Installation

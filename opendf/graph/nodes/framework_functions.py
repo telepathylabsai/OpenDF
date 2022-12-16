@@ -216,7 +216,7 @@ class refer(Node):
         self.signature.add_sig('no_eval', Bool)
         # don't eval external (by default - we do evaluate externally generated graph)
 
-        self.signature.add_sig('no_res', Bool)
+        self.signature.add_sig('no_res', Bool)  # do not consider result nodes
 
         self.signature.add_sig('match_miss', Bool)  # extra parameter to pass to match
         # TODO: add goal/mid... like in revise()? (currently, refer does not explicitly look at paths)
@@ -921,7 +921,7 @@ class getattr(Node):
 
     def __init__(self):
         super().__init__()  # dynamic out type
-        self.signature.add_sig(posname(1), Str, True)
+        self.signature.add_sig(posname(1), Str, True, alias='attr')
         self.signature.add_sig(posname(2), Node, True)
 
     def exec(self, all_nodes=None, goals=None):
@@ -984,7 +984,7 @@ class filtering(Node):
 
     def valid_input(self):
         if 'filter' not in self.inputs and 'index' not in self.inputs:
-            raise MissingValueException.make_exc("filter/index", self)
+            raise MissingValueException("filter/index", self)
 
     def exec(self, all_nodes=None, goals=None):
         res = self.input_view(posname(1))
@@ -1245,7 +1245,9 @@ class AcceptSuggestion(Node):
         self.signature.add_sig(posname(1), Int, alias='index')
 
     def get_missing_value(self, nm, as_node=True):
-        return self.res
+        if nm in ['index', posname(1)]:
+            return 1
+        return self.res if self.res!=self else None
 
     def exec(self, all_nodes=None, goals=None):
         prev_sugg = [] if self.context.prev_sugg_act is None else [i for i in self.context.prev_sugg_act if
@@ -1671,6 +1673,8 @@ class side_task(Node):
         self.signature.add_sig('task', Node)  # this will be moved to pos1
         self.signature.add_sig('persist', Bool)  # Unless persist=True, the side task will be removed from the graph
         self.signature.add_sig('silent', Bool)   # don't create a message for task (but copy if one already exists) (temp)
+        self.signature.add_sig('multiturn', Bool)   # if false (default) - make sure it goes away after one turn
+                                                    #           terminate side task even if inputs raised an exception
         self.signature.add_sig(POS, Node)
 
     def yield_msg(self, params=None):
@@ -1678,7 +1682,7 @@ class side_task(Node):
         return p.yield_msg(params) if p else Message('')  # chain messaging
 
     def trans_simple(self, top):
-        if 'task' in self.inputs:  # mode input 'task' to pos1 - this shows that we have not yet transformed this node
+        if 'task' in self.inputs:  # move input 'task' to pos1 - this shows that we have not yet transformed this node
             task = self.inputs['task']
             self.disconnect_input('task')
             task.connect_in_out(posname(1), self)
@@ -1691,6 +1695,7 @@ class side_task(Node):
 
     # on duplication (revise) - remove side_task if it has only one pos input
     def on_duplicate(self, dup_tree=False):
+        super().on_duplicate(dup_tree=dup_tree)
         if self.num_pos_inputs() == 1:
             nm = [i for i in self.inputs if is_pos(i)][0]
             task = self.inputs[nm]
@@ -1743,7 +1748,21 @@ class side_task(Node):
         e = [ex] + e
         if not self.inp_equals('persist', True):
             self.disconnect_input(posname(1))
-        return False, e  # do not actually change the exception status
+        allow = not self.inp_equals('multiturn', True)
+        return allow, e  # do not actually change the exception status
+
+    def exec(self, all_nodes=None, goals=None):
+        if posname(2) in self.inputs:  # there was actually a previous goal to which we attached the side task
+            main_task = self.inputs[posname(2)]
+            exs = self.context.get_node_exceptions(self)
+            if exs:
+                e = self.context.add_exception(exs[0])
+                e.node = main_task
+            if not self.inp_equals('persist', True):
+                self.context.remove_goal(self)
+            else:
+                self.context.switch_goal_order(-1, -2)
+
 
 
 # another version of handling side dialogs -
