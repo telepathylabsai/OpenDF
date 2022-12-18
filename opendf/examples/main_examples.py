@@ -4,71 +4,344 @@ Main dialog examples.
 The user can select the example by its index, from the command line. The example 0 is for debug.
 """
 
-# noinspection SpellCheckingInspection
 dialogs = [
-    # 0 - Debug
+    # 0
     [
-    # to run multiwoz expressions - add this to the command line call to main.py:  -c resources/multiwoz_2_2_config.yaml
-        #'revise_restaurant()',
-        'revise_restaurant(food=european, bookpeople=4)',
 
-    ],
-    # 1
-    [
-        'DeleteEvent(AND(starts_at(Tomorrow()), with_attendee(FindManager(John))))'
-    ],
-    # 2
-    [
-        # 'CreateEvent(starts_at(Morning()))',
-        'CreateEvent(starts_at(NumberAM(9)))',
-        'ModifyEventRequest(with_attendee(dan))',
+        'Cube(color=red, material=wood, size=big)',
+        # 'Cube(color=yellow, material=plastic, size=big)',
+
+        # 'Board()',
+        # 'InitGrid()',
+        # 'AddBlock(block=Cube(id=1, color=red, material=wood, size=big),x=1, y=1)',
+        # 'AddBlock(block=Cube(id=2, color=yellow, material=plastic, size=big),x=4, y=4)',
+        # 'AddBlock(block=Pyramid(id=3, color=blue, material=metal, size=small),x=3, y=1)',
+        # 'AddBlock(block=Ball(id=4, color=yellow, material=plastic, size=big),x=1, y=3)',
+        # 'refer(Cube?(size=big))',
+        # 'revise(hasParam=color, new=Color(red), newMode=extend)',
+        # 'refer(FN(fname=left_of, farg=refer(PBlock?(block=Block(material=metal)))), multi=True)'
+        #
+
+        # 'Cube(color=red, material=wood, size=big)',
+        # 'Cube(color=yellow, material=plastic, size=big)',
+        # 'Pyramid(color=blue, material=metal, size=small)',
+        # 'Ball(color=yellow, material=plastic, size=big)',
+        # #'Griddy(game=LoopMove(init=InitBoard(size=7)))',
+        # #'move_spec(id=1, position=Position(x=2,y=2))',
+        # 'revise(hasParam=move, new=move_spec(id=1, x=2,y=2), newMode=extend)',
+        # 'revise(hasParam=end, new=True, newMode=extend)',
+        # 'revise(hasParam=confirm, new=True, newMode=extend)',
+        # '<!>refer(Griddy?())',
+        # '<!>refer(Griddy?())',
+        # 'Griddy(game=LoopMove(init=InitBoard()))',
+        # 'revise(hasParam=size, new=7, newMode=extend)',
+        # 'revise(hasParam=move, new=move_spec(id=1, x=2,y=2), newMode=extend)',
         # 'AcceptSuggestion(2)',
+        # 'Yield(:position(refer(PBlock?(block=Block?(id=3)))))',
+        # 'side_task(task=:position(refer(PBlock?(block=Block?(id=3)))), persist=True)',
+        # 'side_task(task=:position(refer(PBlock?(block=Block?(id=3)))))',
+        # 'RejectSuggestion()',
+
+        # 'SET(SET(1, 2), 3, 4)',
+        # '<&>Board()',
+        # 'ShowBoard()',
+        # 'AddBlock(block=Cube(id=1, color=red, material=wood, size=small), x=1, y=1)',
+        # 'ShowBoard()',
+        # 'MoveBlock(id=1, position=Position(x=4, y=4))',
+        # 'revise(old=Position?(), mid=PBlock?(block=Block(id=1)), new=Position(x=4,y=4))',
+
+        # 'ShowBoard()',
+        # ':size(refer(Cube?(color=yellow)))',
+        # 'Yield(IsLeftOf(refer(PBlock?(block=Block?(id=1))), refer(PBlock?(block=Block?(id=2)))))',
+        # 'refer(PBlock?(position=Position(x=4)))',
+        # 'refer(PBlock?(position=Position(x=GT(3))))',
+
+        # 'IsLeftOf(refer(PBlock?(block=Ball?()), multi=True), refer(PBlock?(block=Cube?()), multi=True))',
+        # 'ShowBoard()',
+        # 'ShowBoard()'
+        # 'Add(1,Add(2,3))',
+        # 'SET(Cube(color=red, material=wood, size=big), Cube(color=yellow, material=plastic, size=big))',
+        # 'Cube(color=red, material=wood)',
+        # 'Yield(Cube(color=red, material=wood, size=big))'
+        # 'refer(Cube?(color=red))',
+        # 'refer(Pyramid?())',
+        # 'refer(Cube?())',
+        # 'refer(OR(Block?(material=plastic), Block?(color=blue)), multi=True)',
+        # 'refer(Cube?(), multi=True)',
+        # 'getattr(size, refer(Ball?()))',
+        # 'getattr(size, Ball(size=big, material=plastic, color=yellow))',
+        # ':size(Ball(size=big, material=plastic, color=yellow))',
+        # ':size(refer(Cube?(color=red)))',
+        # 'revise(old=Color?(), new=Color(yellow))',
+        # ':size(refer(Ball?()))',
+        # 'revise(old=Block??(), new=Pyramid?())',
+        # 'Yield(refer(Cube?(color=:color(refer(Ball?())))))',
+        # 'Yield(:size(refer(Cube?(color=:color(refer(Ball?()))))))',
+        # 'EQf(:material(refer(Cube?(color=:color(refer(Ball?()))))), :material(refer(Block?(color=blue))))',
+        # 'refer(Block?(material=wood))',
+        # 'init_game()',
+        # 'game()',
+        # 'revise(hasParam=task, new=MoveBlock(id=2, position=Position(x=6, y=0)), newMode=extend)',
+        # 'revise(hasParam=task, new=MoveBlock(id=2, position=Position(x=5, y=0)), newMode=extend)',
+        # 'revise(hasParam=done, new=True, newMode=extend)',
+
+        #"Find(Hotel?(internet=yes, pricerange=cheap, type=hotel))",
+        #"revise(old=Hotel??(), newMode=overwrite, new=Hotel?(name=LIKE(Name(cambridge belfry)), parking=refer(role=parking)))",
+        # 'UpdateEvent(event=Event(start=Today()), update=Event(attendees=AND(#Lindsay, FindManager(#Lindsay))))',
+        # 'UpdateEvent(event=Event?(), update=Event?())',
+
+        #'Yield(output=Date(year=2021))',
+        # 'revise(hasParam=year, new=#2020, newMode=extend)',
+        # 'revise(hasParam=output, new=#2020, newMode=extend)',
+
+        # 'Yield(FindEventWrapperWithDefaults( \
+        #     constraint=eventDuringRange(\
+        #         range=FullMonthofMonth(sep), \
+        #         event=Event?(attendees=ANY(Recipient?(name=LIKE(PersonName(John_Smith))))))))',
+
+        # # ':start( singleton(FindEventWrapperWithDefaults( constraint=eventOnDate( date=NextDOW(dow=Wednesday), \
+        #       event=Event?(attendees=ANY(Recipient?(name=LIKE(PersonName(John_Smith))) ) ) ) ) ))',
+
+        # 'ANDf(#True, #False)',
+        # 'GTf(size(SET(Time(hour=1),Time(hour=1),SET(Time(hour=2), Time(hour=2)))), #1)',
+        # 'size(SET(Time(hour=1),Time(hour=1),SET(Time(hour=2), Time(hour=2))), unroll=True)',
+        # 'size(Time(hour=1))',
+        # 'CreateEvent(Event?(\
+        #     attendees=OR(Recipient?(name=Jane),Recipient?(name=Jane)),\
+        #     start=DateTime?(date=NextDOW(dow=Sunday), time=NumberPM(3))))',
+
+        # 'Yield(output=:dow(DateTime(date=Tomorrow())))',
+        # 'Yield(output=WillSnow(place=#zurich, time=DateTime?(date=Today(), time=Morning())))',
+
+        # ':output(Yield(output=Date(year=2021)))',
+        # 'revise(hasParam=year, new=#2020, newMode=extend)',
+        # 'revise(hasParam=output, new=#2020, newMode=extend)',
+
+        # 'DateTime(date=Tomorrow())',
+        # 'DateTime(dow=sat)',
+        # ':dow(DateTime(date=Tomorrow()))',
+        # 'Yield(output=:start(Event(subject=party, start=DateTime(date=Tomorrow(), time=Time(hour=8)))))',
+        # 'Yield(output=:end(Event(subject=party, end=Tomorrow(), start=DateTime(date=Today(), time=Time(hour=8)))))',
+
+        # 'Yield(output=:end(Event(subject=party, end=Tomorrow(), start=DateTime(date=Today(), time=Time(hour=8)))))',
+
+        # 'Recipient(name=john)',
+
+        # 'revise(hasParam=index, new=#1, newMode=extend)',
+
+        # 'Yield(output=:day(Today()))',
+        # 'Yield(output=:start(Event(start=Now())))',
+
+        # 'CreateEvent(Event?(\
+        #     attendees=Recipient?(name=Jane),\
+        #     start=DateTime?(date=NextDOW(dow=Sunday), time=NumberPM(3))))',
+
+        # 'Yield(output=CreateEvent(Event?(\
+        #     attendees=Recipient?(name=Jane),\
+        #     start=DateTime?(date=NextDOW(dow=Sunday), time=NumberPM(3)))))',
+
+        # 'CreateCommitEventWrapper(event=CreatePreflightEventWrapper(constraint=Event?(\
+        #     attendees=Recipient?(name=Jane),\
+        #     start=DateTime?(date=GT(NextDOW(dow=Sunday)), time=GT(NumberPM(3))))))',
+
+        # 'CreateCommitEventWrapper(event=CreatePreflightEventWrapper(constraint=Event?(\
+        #     attendees=Recipient?(name=Jane),\
+        #     start=DateAtTimeWithDefaults(date=NextDOW(dow=Sunday), time=NumberPM(3)))))',
+
+        # 'CreateCommitEventWrapper(event=CreatePreflightEventWrapper(constraint=Event?(\
+        #     attendees=Recipient?(name=LIKE(PersonName(Jane))),\
+        #     start=DateAtTimeWithDefaults(date=NextDOW(dow=Sunday), time=NumberPM(3)))))',
+
+        # 'revise(hasParam=index, new=#2, newMode=extend)',
+        # 'AcceptSuggestion(index=1)',
+
+        # 'refer(Recipient?())',
+        # 'refer(type=Recipient?)',
+        # 'refer(Recipient?(name=LIKE(john)))',
+        # 'refer(Recipient?(name=LIKE(john)), cond=ANY(Recipient?(lastName=Smith), Recipient?(firstName=dan)))',
+        # 'refer(type=Recipient, cond=AND(Recipient?(lastName=Smith), Recipient?(firstName=john)))',
+        # 'refer(Recipient?(firstName=john), cond=AND(Recipient?(name=LIKE(Doe)), Recipient?(name=LIKE(john))))',
+        # 'refer(Recipient?(), cond=AND(Recipient?(name=LIKE(Doe)), Recipient?(name=LIKE(john))))',
+        # 'refer(AND(Recipient?(name=LIKE(Doe)), Recipient?(name=LIKE(john))))',
+        # 'refer(AND(Recipient?(lastName=Doe), Recipient?(firstName=john)))',
+
+        # 'DateAtTimeWithDefaults(date=NextDOW(dow=Sunday), time=NumberPM(3))',
+        # ':start( singleton(FindEventWrapperWithDefaults( constraint=eventOnDate( date=NextDOW(dow=Wednesday), \
+        #      event=Event?(attendees=ANY(Recipient?(name=LIKE(PersonName(John_Smith))) ) ) ) ) ))',
+        # 'CreateCommitEventWrapper(event=CreatePreflightEventWrapper(constraint=Event?(\
+        #     subject=golf, start=DateTime?(date=NextDOW(dow=sat), time=NumberAM(10)), end=NumberPM(3))))',
+
+        # 'CreateCommitEventWrapper(event=CreatePreflightEventWrapper(constraint=Event?(\
+        #   attendees=Recipient?(name=LIKE(PersonName(John))),\
+        #    start=DateAtTimeWithDefaults(date=NextDOW(dow=Sunday), time=NumberPM(3)))))',
+
+        # 'Yield(output=WillSnow(place=#zurich, time=DateTime?(date=Today(), time=Morning())))',
+
+        # 'revise(oldNode=refer(role=day),  inp_nm=pos1, new=#29, newMode=overwrite)',
+
+        # 'DateTime?(time=Morning())'
+
+        # 'WeatherQueryApi(place=AtPlace(FindPlace(keyphrase=#zurich)), time=DateTime?(date=Today(), time=Morning()))',
+        # 'IsCold(table=WeatherQueryApi(place=#zurich, time=DateTime?(date=Today(), time=Morning())))',
+        # 'Yield(output=WillSnow(table=WeatherQueryApi(place=#zurich, time=DateTime?(date=Today(), time=Morning()))))',
+        # '',
+        # 'revise(oldNode=refer(role=day), inp_nm=day, new=#29, newMode=extend)',
+        # 'DateTime(date=Date(day=28))',
+        # 'refer(Date?())',
+        # 'refer(role=day)',
+        # 'revise(old=Date?(),  new=Date(day=29), newMode=auto)',
+
+        # 'revise(hasParam=day, new=#29, newMode=extend)',
+
+        # 'DateTime?(date=Today())',
+        # 'DateTime?(date=Today(), time=Evening())',
+
+        # 'AtPlace(FindPlace(keyphrase=LocationKeyphrase(zurich)))',
+        # 'AtPlace(FindPlace(keyphrase=#zurich))',
+
+        # 'ThisWeekEnd()',
+        # 'DateRange_to_Date(ThisWeekEnd())',
+        # 'DateTime(date=ThisWeekEnd())',
+        # 'CreateCommitEventWrapper(event=CreatePreflightEventWrapper(constraint=Event?(\
+        #     subject=date, start=DateTime?(date=ThisWeekEnd()))))',
+        # 'revise(hasParam=start, new=DateTime?(date=Date?(dow=NOT(ANY(WeekEndDays())))), newMode=extend)'
+        # 'revise(old=Event??(), new=Event?(start=DateTime?(date=Date?(dow=ANY(WeekDays())))), newMode=auto)'
+        # 'revise(old=Event??(), new=Event?(start=DateTime?(date=Date?(dow=WeekDays()))), newMode=auto)',
         # 'AcceptSuggestion()',
+        # 'AcceptSuggestion()',
+
+        # 'revise(old=Event??(), new=Event?(end=Time(hour=15, minute=30)), newMode=auto)',
+        # 'revise(old=Event??(), new=Event?(start=Time(hour=10, minute=30)), newMode=auto)',
+        # 'RejectSuggestion()',
+        # 'revise(old=Event??(), new=Event?(subject=GolfDay), newMode=auto)',
+        # 'revise(hasParam=confirm, new=#true, newMode=extend)',
+        # 'RejectSuggestion()',
+        # 'AcceptSuggestion()',
+
+        # 'ClosestDayOfWeek(dow=tue, date=Date(year=2021, month=8, day=18))',
+        # 'NextDOW(dow=sat)',
+
+        # 'DateTime(date=NextDOW(dow=sat), time=NumberAM(10))',
+        # 'DateTime(date=NextDOW(dow=sat))',
+        # 'DateAtTimeWithDefaults(date=NextDOW(dow=sat))',
+        # 'DateAtTimeWithDefaults()',
+
+        # 'let(x0, DateAtTimeWithDefaults(date=NextDOW(dow=sat), time=NumberAM(10)))',
+
+        # ':start( singleton(FindEventWrapperWithDefaults( constraint=eventOnDate( date=NextDOW(dow=Wednesday), \
+        #        event=Event?(attendees=ANY(Recipient?(name=LIKE(PersonName(John_Smith))) ) ) ) ) ))',
+        # 'CreateCommitEventWrapper(event=CreatePreflightEventWrapper(constraint=Event?(\
+        #  attendees=refer(Recipient?(name=LIKE(PersonName(John)))),\
+        #  start=NextTime(time=NumberAM(9)))))',
+
+        # 'let(pers, singleton(refer(Recipient?(name=LIKE(PersonName(John))))), res)',
+        # 'revise(hasParam=index, new=#1, newMode=extend)',
+        # # '{pers~}refer(Recipient?(name=LIKE(PersonName(Dan))))',
+        #
+        # 'CreateCommitEventWrapper(event=CreatePreflightEventWrapper(constraint=Event?(\
+        #      attendees=SET($pers, FindManager($pers) ), subject=lunch, start=DateTime?(time=Time(hour=12)))))',
+        #
+        # 'revise(old=Event??(), new=Event?(attendees=NEQ($pers), subject=managers_lunch), newMode=auto)',
+        #
+        # 'RejectSuggestion()',
+        # 'AcceptSuggestion(index=1)',
+        # #'revise(hasParam=confirm, new=#true, newMode=extend)',
+
+        # 'refer(Node?())',
+
+        # 'revise(old=Event??(), new=Event?(attendees=excludeRecipient($pers)), newMode=auto)',
+
+        # '{pers~}refer(Recipient?(name=LIKE(PersonName(Dan))))',
+        # 'includeRecipient($pers)',
+        # 'excludeRecipient($pers)',
+
+        # 'FindManager($pers)',
+
+        # ':start( singleton(index=1, FindEventWrapperWithDefaults( constraint=eventOnDate( date=NextDOW(dow=Wednesday), \
+        #      event=Event?(attendees=ANY(AttendeeListHasRecipientConstraint( recipientConstraint=RecipientWithNameLike( \
+        #      constraint=Recipient, name=John ) ) ) ) )) ))',
+
+        # 'refer(Recipient?(name=LIKE(PersonName(John_Smith))))',
+
+        # ':start( singleton(FindEventWrapperWithDefaults( constraint=eventOnDate( date=NextDOW(dow=Wednesday), \
+        #      event=Event?(attendees=ANY(Recipient?(name=LIKE(PersonName(John_Smith))) ) ) ) ) ))',
+        #
+        # 'CreateCommitEventWrapper(event=CreatePreflightEventWrapper(constraint=Event?(\
+        #  attendees=refer(Recipient?(name=LIKE(PersonName(John)))),\
+        #  start=NextTime(time=NumberAM(number=9)))))',
+        #
+        # 'revise(old=Event??(), new=Event?(duration=PeriodDuration(toHours(2))), newMode=overwrite)',
+        # # 'revise(mid=Event??(), hasParam=duration, new=Period(hour=2), newMode=extend)',
+        # 'revise(hasParam=confirm, new=#true, newMode=extend)',
+
+        # 'CreateCommitEventWrapper(event=CreatePreflightEventWrapper(constraint=Event?(attendees=ANY( \
+        #     RecipientWithNameLike(constraint=Recipient, name=John)),\
+        #     start=NextTime(time=NumberAM(number=9)))))',
+
+        # ':start( singleton(FindEventWrapperWithDefaults( constraint=eventOnDate( date=NextDOW(dow=Wednesday), \
+        #      event=Event?(attendees=ANY(RecipientWithNameLike(constraint=Recipient, name=John ) ) ) ) ) ))',
+        # ':dayOfWeek(Today())',
+
+        # ':start( singleton(FindEventWrapperWithDefaults( constraint=eventOnDate( date=NextDOW(dow=Wednesday), \
+        #      event=Event?(attendees=ANY(AttendeeListHasRecipientConstraint( recipientConstraint=RecipientWithNameLike( \
+        #      constraint=Recipient, name=John ) ) ) ) )) ))',
+        # ':dayOfWeek(Today())',
+
+        # 'Tomorrow()',
+        # 'CreateCommitEventWrapper(event=CreatePreflightEventWrapper(constraint=Event?(attendees=AttendeeListHasRecipient( \
+        #    recipient=refer(RecipientWithNameLike(constraint=Recipient, name=John))),\
+        #    start=NextTime(time=NumberAM(number=9)))))',
+        # 'revise(mid=Event??(), hasParam=duration, new=Period(hour=2), newMode=extend)',
+        # 'revise(hasParam=confirm, new=#true, newMode=extend)',
+
+        # 'SET(Int(1), Int(2))',
+        # 'SET[Int](1,2)',
+        # 'SET(#1,#2)',
+
+        # 'Div(d1=Mult(m1=Add(a1=1, a2=2), m2=4), d2=!Sub(s1=9, s2=6))',
+        # 'refer(Int?(3))',
+        # 'refer(Int?(3))',
+        # 'refer(<Int?(3))',
+        # 'refer(<Add(a1=1, a2=2))',
+
+        # 'refer(Recipient?(name=AND(LIKE[PersonName](John),NOT(LIKE[PersonName](Doe)))))',
+        # 'refer(Recipient?(name=AND(LIKE(PersonName(John)),NOT(LIKE(PersonName(Doe))))))',
     ],
+
+    ['Int()'],  # 1
+    ['Int(10)'],  # 2
+
     # 3
     [
-        'UpdateEvent(AND(ends_at(HourMinuteAm(hours=10,minutes=30)), at_location(jeffs),\
-                    starts_at(NextDOW(SUNDAY)),starts_at(NumberAM(10))), \
-                    constraint=AND(ends_at(NumberPM(2)),starts_at(NumberAM(11))))',
+        # 'Bool(yes)',
+        'Bool(Yes)',
+        # 'Bool(True)',
     ],
-    # 4
+
+    # 4 - dialog #5 - weather, yield
     [
-        'UpdateEvent(event=has_id(4), constraint=starts_at(Time(hour=19)))',
+        # 'IsCold(table=WeatherQueryApi(place=#zurich, time=DateTime?(date=Today(), time=Morning())))',
+        # 'Yield(output=WillSnow(table=WeatherQueryApi(place=#zurich, time=DateTime?(date=Today(), time=Morning()))))',
+        'Yield(output=WillSnow(place=zurich, time=DateTime?(date=Today(), time=Morning())))',
     ],
-    # 5
+    # 5 - yield getattr / property
     [
-        'FindEvents(starts_at(Morning()))',
-        'ModifyEventRequest(starts_at(GT(Time(hour=9, minute=0))))',
+        # 'Yield(output=:day(Today()))',
+        # 'Yield(output=:start(Event(start=DateTime(date=Tomorrow(), time=Time(hour=8)))))',
+        'Yield(output=:start(Event(subject=party, start=DateTime(date=Tomorrow(), time=Time(hour=8)))))',
+        # 'Yield(output=:end(Event(subject=party, end=Tomorrow(), start=DateTime(date=Today(), time=Time(hour=8)))))',
     ],
-    # 6
+    # 6 - alias
     [
-        'FindEvents(AND(avoid_start(Morning()), at_location(room3)))',
+        'Yield(output=Date(year=2021))',
+        'revise(hasParam=output, new=2020, newMode=extend)',
     ],
-    # 7
+    # 7 - size (unroll), operator-function
     [
-        'WeatherQueryApi(place=AtPlace(place=FindPlace(Zurich)), time=Today())',
-        'WillSnow(table=refer(WeatherTable?()))',
-    ],
-    # 8
-    [
-        'FindEvents(Event?(slot=TimeSlot(bound=DateTimeRange('
-        'start=DateTime(date=Date(year=2022, month=1, day=5), time=Time(hour=10, minute=0)), '
-        'end=DateTime(date=Date(year=2022, month=1, day=6), time=Time(hour=13, minute=0))'
-        '))))',
-    ],
-    # 9
-    [
-        'FindEvents(Event?(slot=TimeSlot(inter=DateTimeRange('
-        'start=DateTime(date=Date(year=2022, month=1, day=5), time=Time(hour=10, minute=0)), '
-        'end=DateTime(date=Date(year=2022, month=1, day=6), time=Time(hour=13, minute=0))'
-        '))))',
-    ],
-    # 10
-    [
-        'GTf(size(FindEvents(with_attendee(jack))), Int(1))'
-    ],
-    # 11
-    [
-        'GTf(size(FindEvents(starts_at(GT(singleton(FindEvents(with_attendee(jack))))))), Int(1))',
-    ],
+        'size(SET(Time(hour=1),Time(hour=1),SET(Time(hour=2), Time(hour=2))))',
+        'size(SET(Time(hour=1),Time(hour=1),SET(Time(hour=2), Time(hour=2))), unroll=True)',
+        'size(Time(hour=1))',
+        'GTf(size(SET(Time(hour=1),Time(hour=1),SET(Time(hour=2), Time(hour=2)))), 1)',
+    ]
+
 ]
