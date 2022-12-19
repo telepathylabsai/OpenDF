@@ -14,7 +14,7 @@ from opendf.applications.smcalflow.domain import DBevent, DBPerson, WeatherPlace
 from opendf.utils.database_utils import DATABASE_SYSTEM
 
 # init type info
-from opendf.applications.smcalflow.fill_type_info import fill_type_info
+from opendf.applications.fill_type_info import fill_type_info
 from opendf.graph.node_factory import NodeFactory
 from opendf.defs import use_database, database_connection, config_log
 

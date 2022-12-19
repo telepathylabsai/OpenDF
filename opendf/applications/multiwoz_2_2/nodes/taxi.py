@@ -251,7 +251,7 @@ class get_taxi_info(Node):
             if m:
                 taxi = m[0]
             else:
-                raise MissingValueException('I can give information only after we have selected one taxi', self)
+                raise MissingValueException('taxi', self, 'I can give information only after we have selected one taxi')
 
         if taxi:
             fts = []

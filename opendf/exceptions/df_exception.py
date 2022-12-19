@@ -12,7 +12,7 @@ class DFException(Exception, ABC):
     The base Dataflow exception.
     """
 
-    def __init__(self, message, node, hints=None, suggestions=None, orig=None, chain=None, objects=None):
+    def __init__(self, message, node, hints=None, suggestions=None, orig=None, chain=None, objects=None, turn=None):
         """
         Creates a base Dataflow exception.
 
@@ -46,17 +46,25 @@ class DFException(Exception, ABC):
         self.orig = orig
         self.chain = chain
         self.objects = objects if objects else []
-        self.turn = node.context.turn_num  # the turn when this exception was created (not when node was created)
+        self.turn = turn
+        if turn is None and not isinstance(node, int):  # in case called from unpack context, the turn would be copied by dup.
+            self.turn = node.context.turn_num  # the turn when this exception was created (not when node was created)
 
     def __reduce__(self):
         return (self.__class__, (
-            self.message, self.node, self.hints, self.suggestions, self.orig, self.chain, self.objects))
+            self.message, self.node, self.hints, self.suggestions, self.orig, self.chain, self.objects, self.turn))
 
     def chain_end(self):
         return self.chain.chain_end() if self.chain else self
 
     def chain_orig(self):
         return self.chain.chain_orig() if self.orig else self
+
+    # def dup(self):
+    #     ex = DFException(self.message, self.node, self.hints, self.suggestions,
+    #                      self.orig, self.chain, self.objects, self.turn)
+    #     ex.__class__ = self.__class__
+    #     return ex
 
 
 class NotImplementedYetDFException(DFException):
@@ -76,6 +84,9 @@ class NoReviseMatchException(DFException):
     def __init__(self, node, message="No revise match", hints=None, suggestions=None, orig=None, chain=None, objects=None):
         super().__init__(message, node, hints=hints, suggestions=suggestions, orig=orig, chain=chain, objects=objects)
 
+    def __reduce__(self):
+        return (self.__class__, (
+            self.node, self.message, self.hints, self.suggestions, self.orig, self.chain, self.objects))
 
 class InvalidResultException(DFException):
     """
@@ -166,19 +177,18 @@ class MissingValueException(InvalidInputException):
     Exception when data is missing for required node field.
     """
 
-    #  use this, since copy() gets confused otherwise (really needed??)
-    @staticmethod
-    def make_exc(key, node, hints=None, suggestions=None, orig=None, chain=None, message=None, objects=None):
+    def __init__(self, key,  node, message=None, hints=None, suggestions=None, orig=None, chain=None, objects=None):
         if message is None:
             message = f"Missing data for field {key} on node {node.__class__.__name__}"
             if hints:
                 message += f", hint: {hints}"
             message += '.'
-        return MissingValueException(message, node, hints=hints, suggestions=suggestions, orig=orig, chain=chain, objects=objects)
-
-    def __init__(self, message, node, hints=None, suggestions=None, orig=None, chain=None, objects=None):
         super().__init__(message, node, hints=hints, suggestions=suggestions, orig=orig, chain=chain, objects=objects)
+        self.key = key
 
+    def __reduce__(self):
+        return (self.__class__, (
+            self.key, self.node, self.message, self.hints, self.suggestions, self.orig, self.chain, self.objects))
 
 class NoPropertyException(DFException):
     """
@@ -199,6 +209,9 @@ class WrongSuggestionSelectionException(DFException):
             message = "I'm not sure which suggestion you're referring to. Please be explicit"
         super().__init__(message, node, hints=hints, suggestions=suggestions, orig=orig, chain=chain, objects=objects)
 
+    def __reduce__(self):
+        return (self.__class__, (self.node, self.hints, self.suggestions, self.orig, self.chain,
+                                 self.message, self.objects))
 
 class ElementNotFoundException(DFException):
     """

@@ -115,11 +115,11 @@ class EnvironmentDefinition:
         self.show_config = True
         self.show_hints = False  # draw hints (used in dialog_txt)
         # noinspection SpellCheckingInspection
-        self.show_sugg = True  # draw suggestions
+        self.show_sugg = False  # draw suggestions
         self.draw_vert = True  # draw vertically
         self.show_tags = True  # draw tags
         self.show_assign = False  # draw assign labels
-        self.show_last_ok = True  # draw marker showing if last turn had exception or not
+        self.show_last_ok = False  # draw marker showing if last turn had exception or not
         self.hide_extra_base = False  # don't draw leaf types
         self.show_view = False  # draw view type
         self.show_nodes = True  # turns off drawing of nodes (drawing only text)
@@ -130,7 +130,7 @@ class EnvironmentDefinition:
         self.show_txt = True  # draw text
         self.show_simp = True  # draw simplified text
         self.show_explain = True  # draw explanations
-        self.show_only_n = 0  # draw only last N goals (if 0, draw all)
+        self.show_only_n =2  # draw only last N goals (if 0, draw all)
         self.show_alias = True  # draw alias names
         self.show_last_exc_per_node = False
         self.hide_internal_db = False  # don't draw nodes internal to the DB - draw only top node from DB(reduce

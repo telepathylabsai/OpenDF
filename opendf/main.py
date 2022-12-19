@@ -187,7 +187,7 @@ def dialog(dialog_id, dialogs, d_context, draw_graph=True, p_expressions=None):
         if not cont:
             d_context.inc_turn_num()
 
-        check_dangling_nodes(d_context)  # sanity check - debug only
+        # check_dangling_nodes(d_context)  # sanity check - debug only
         if environment_definitions.turn_by_turn and not end_of_dialog:
             if draw_graph:
                 draw_all_graphs(d_context, dialog_id)

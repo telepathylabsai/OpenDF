@@ -211,7 +211,7 @@ class BookRestaurant(Node):
         #self.update_mwoz_state()
 
         if 'restaurant' not in self.inputs:
-            raise MissingValueException('Please specify what restaurant you are looking for', self)
+            raise MissingValueException('restaurant', self, 'Please specify what restaurant you are looking for')
         restaurant = self.input_view('restaurant')
         context = self.context
 
@@ -261,17 +261,17 @@ class BookRestaurant(Node):
             d.connect_in_out('book_info', self)
         binf = self.inputs['book_info']
         if 'bookday' not in binf.inputs:
-            raise MissingValueException(msg+'On which day would you like to book the restaurant?', self)
+            raise MissingValueException('bookday', self, msg+'On which day would you like to book the restaurant?')
         if 'booktime' not in binf.inputs:
-            raise MissingValueException(msg+'At what time would you like to book the restaurant?', self)  # todo - add hint - to avoid confusing with num people?
+            raise MissingValueException('booktime', self, msg+'At what time would you like to book the restaurant?')  # todo - add hint - to avoid confusing with num people?
         if 'bookpeople' not in binf.inputs:
-            raise MissingValueException(msg+'For how many people would you like to book the restaurant?', self)
+            raise MissingValueException('bookpeople', self, msg+'For how many people would you like to book the restaurant?')
         ok, conf_code = check_restaurant_availability(restaurant, binf, book_fields)
         if ok:
             d, e = self.call_construct_eval('BookRestaurantConfirmation(restaurant=%s, book_info=%s, conf_code=%s)' %
                                             (id_sexp(restaurant), id_sexp(binf), conf_code), self.context)
             self.set_result(d)
-            self.context.add_message(self, 'I have made the reservation as requested')
+            self.context.add_message(self, 'I have made the reservation as requested  NL  The confirmation code is %s' % conf_code)
         else:
             # todo - if oracle - say what failed / what is needed
             raise InvalidInputException('Unfortunately the restaurant can not confirm this booking.    NL  Maybe try another day or length of stay?', self)
@@ -492,6 +492,7 @@ class FindRestaurant(Node):
         return msg
 
     def on_duplicate(self, dup_tree=False):
+        super().on_duplicate(dup_tree=dup_tree)
         # old = self.dup_of.input_view('restaurant')
         old = self.dup_of.res if self.dup_of.res != self.dup_of else self.dup_of.input_view('restaurant')
         curr = self.input_view('restaurant')
@@ -626,7 +627,7 @@ class get_restaurant_info(Node):
             if m:
                 restaurant = m[0]
             else:
-                raise MissingValueException('I can give information only after we have selected one restaurant', self)
+                raise MissingValueException('restaurant', self, 'I can give information only after we have selected one restaurant')
 
         if restaurant:
             fts = []

@@ -200,7 +200,7 @@ class BookTrain(Node):
         #self.update_mwoz_state()
 
         if 'train' not in self.inputs:
-            raise MissingValueException('Please specify which train you are looking for', self)
+            raise MissingValueException('train', self, 'Please specify which train you are looking for')
         train = self.input_view('train')
         context = self.context
 
@@ -247,7 +247,7 @@ class BookTrain(Node):
             d.connect_in_out('book_info', self)
         binf = self.inputs['book_info']
         if 'bookpeople' not in binf.inputs:
-            raise MissingValueException(msg+'For how many people?', self)
+            raise MissingValueException('bookpeople', self, msg+'For how many people?')
         # if 'bookday' not in binf.inputs:
         #     raise MissingValueException(msg+'On which day?', self)
         ok, conf_code = check_train_availability(train, binf, book_fields)
@@ -516,6 +516,7 @@ class FindTrain(Node):
     #    also if agent made a suggestion (which was implicitly accepted) - since we don't have explicit RejectSuggestion
     #    we need this implicit reject
     def on_duplicate(self, dup_tree=False):
+        super().on_duplicate(dup_tree=dup_tree)
         # old = self.dup_of.input_view('train')
         old = self.dup_of.res if self.dup_of.res != self.dup_of else self.dup_of.input_view('train')
         curr = self.input_view('train')
@@ -635,7 +636,7 @@ class get_train_info(Node):
             if m:
                 train = m[0]
             else:
-                raise MissingValueException('I can give information only after we have selected one train', self)
+                raise MissingValueException('train', self, 'I can give information only after we have selected one train')
 
         if train:
             fts = []

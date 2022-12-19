@@ -77,9 +77,22 @@ class ParserException(InputProgramException):
     Parser exception when processing the input P-expression.
     """
 
-    def __init__(self, parsed):
-        super(ParserException, self).__init__(f"Syntax error at `{parsed}`")
+    def __init__(self, parsed, message=None):
+        if message is None:
+            message = f"Syntax error at `{parsed}`"
+        super(ParserException, self).__init__(message)
         self.parsed = parsed
+
+
+class UnfinishedParserException(ParserException):
+    """
+    Parser exception when the parser reached the end of the input, but it is not on an accept state.
+    """
+
+    def __init__(self):
+        super(UnfinishedParserException, self).__init__(
+            None,
+            message=f"Parser reached the end of the input, but it is not on an accept state.")
 
 
 class SemanticException(InputProgramException):

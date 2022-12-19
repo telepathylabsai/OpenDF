@@ -309,6 +309,7 @@ class FindAttraction(Node):
         return msg
 
     def on_duplicate(self, dup_tree=False):
+        super().on_duplicate(dup_tree=dup_tree)
         old = self.dup_of.res if self.dup_of.res != self.dup_of else self.dup_of.input_view('attraction')
         curr = self.input_view('attraction')
         if 'name' in old.inputs and 'name' in curr.inputs:
@@ -397,7 +398,7 @@ class get_attraction_info(Node):
             if m:
                 att = m[0]
             else:
-                raise MissingValueException('I can give information only after we have selected one attraction', self)
+                raise MissingValueException("attraction", self, 'I can give information only after we have selected one attraction')
 
         if att:
             fts = []

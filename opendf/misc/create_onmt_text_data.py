@@ -16,7 +16,8 @@ from tqdm import tqdm
 from dataflow.core.constants import SpecialStrings
 from dataflow.core.dialogue import Dialogue, Turn, TurnId
 
-simplify = True
+
+simplify=True
 
 # We assume all dialogues start from turn 0.
 # This is true for MultiWoZ and CalFlow datasets.
@@ -41,42 +42,15 @@ class OnmtTextDatum:
             for suffix in ["datum_id", "src", "src_tok", "tgt"]
         }
 
-INT_REGEX = re.compile("\d+")
-
-def concatenate_time_tokens(tokens, original_text):
-    result = []
-    i = 0
-    size = len(tokens)
-    while i < size:
-        token = tokens[i].strip()
-        if i < size - 2 and INT_REGEX.fullmatch(token):
-            hour = int(token)
-            minute_token = tokens[i + 2].strip()
-            if hour <= 24 and tokens[i + 1].strip() == ":" and INT_REGEX.fullmatch(minute_token):
-                minute = int(tokens[i + 2])
-                if minute < 60:
-                    concatenate_token = token + ":" + minute_token
-                    if concatenate_token in original_text:
-                        result.append(concatenate_token)
-                        i += 3
-                        continue
-
-        result.append(token)
-        i += 1
-
-
-    return result
-
 
 def stringify_turn(
-        turn: Turn,
-        include_user_utterance: bool,
-        include_program: bool,
-        include_agent_utterance: bool,
-        include_described_entities: bool,
-        tokenize_utterance: bool,
-        simp: bool,
-        remove_time_space: bool,
+    turn: Turn,
+    include_user_utterance: bool,
+    include_program: bool,
+    include_agent_utterance: bool,
+    include_described_entities: bool,
+    tokenize_utterance: bool,
+    simp: bool,
 ) -> str:
     """Render a turn as a string and inserts corresponding delimiters before each segment in the string."""
     segments: List[str] = []
@@ -85,11 +59,7 @@ def stringify_turn(
         segments.append(SpecialStrings.SPEAKER_USER)
         if tokenize_utterance:
             assert turn.user_utterance.tokens
-            if remove_time_space:
-                tokens = concatenate_time_tokens(turn.user_utterance.tokens, turn.user_utterance.original_text)
-                user_utterance_str = " ".join(tokens)
-            else:
-                user_utterance_str = " ".join(turn.user_utterance.tokens)
+            user_utterance_str = " ".join(turn.user_utterance.tokens)
         else:
             user_utterance_str = turn.user_utterance.original_text
         segments.append(user_utterance_str)
@@ -124,14 +94,13 @@ def stringify_turn(
 
 
 def create_source_str(
-        curr_turn: Turn,
-        context_turns: List[Turn],
-        include_program: bool,
-        include_agent_utterance: bool,
-        include_described_entities: bool,
-        tokenize_utterance: bool,
-        simp: bool,
-        remove_time_space: bool,
+    curr_turn: Turn,
+    context_turns: List[Turn],
+    include_program: bool,
+    include_agent_utterance: bool,
+    include_described_entities: bool,
+    tokenize_utterance: bool,
+    simp: bool,
 ) -> str:
     """Creates the source sequence string."""
     segments: List[str] = []
@@ -145,7 +114,6 @@ def create_source_str(
             include_described_entities=include_described_entities,
             tokenize_utterance=tokenize_utterance,
             simp=simp,
-            remove_time_space=remove_time_space,
         )
         for idx, context_turn in enumerate(context_turns)
     ]
@@ -162,7 +130,6 @@ def create_source_str(
             include_described_entities=False,
             tokenize_utterance=tokenize_utterance,
             simp=simp,
-            remove_time_space=remove_time_space,
         ),
         # add this special token to trigger the decoder to produce the program
         SpecialStrings.START_OF_PROGRAM,
@@ -171,14 +138,13 @@ def create_source_str(
 
 
 def create_onmt_text_datum_for_turn(
-        dialogue_id: str,
-        curr_turn: Turn,
-        context_turns: List[Turn],
-        include_program: bool,
-        include_agent_utterance: bool,
-        include_described_entities: bool,
-        simp: bool,
-        remove_time_space: bool,
+    dialogue_id: str,
+    curr_turn: Turn,
+    context_turns: List[Turn],
+    include_program: bool,
+    include_agent_utterance: bool,
+    include_described_entities: bool,
+    simp: bool,
 ) -> OnmtTextDatum:
     """Creates the OpenNMT text datum for a turn."""
     datum_id_str = jsons.dumps(TurnId(dialogue_id, curr_turn.turn_index))
@@ -190,7 +156,6 @@ def create_onmt_text_datum_for_turn(
         include_described_entities=include_described_entities,
         tokenize_utterance=False,
         simp=simp,
-        remove_time_space=False,
     )
     src_tok_str = create_source_str(
         curr_turn=curr_turn,
@@ -200,7 +165,6 @@ def create_onmt_text_datum_for_turn(
         include_described_entities=include_described_entities,
         tokenize_utterance=True,
         simp=simp,
-        remove_time_space=remove_time_space,
     )
 
     if not simp:  # JM
@@ -223,29 +187,28 @@ def create_onmt_text_datum_for_turn(
 
 
 def create_context_turns(
-        turn_lookup: Dict[int, Turn],
-        curr_turn_index: int,
-        num_context_turns: int,
-        min_turn_index: int,
+    turn_lookup: Dict[int, Turn],
+    curr_turn_index: int,
+    num_context_turns: int,
+    min_turn_index: int,
 ) -> List[Turn]:
     mm = max(list(turn_lookup.keys()))
     return [
         turn_lookup[tt]
         for tt in range(
             max(min_turn_index, curr_turn_index - num_context_turns), curr_turn_index) if tt in turn_lookup
-
+        
     ]
 
 
 def create_onmt_text_data_for_dialogue(
-        dialogue: Dialogue,
-        num_context_turns: int,
-        min_turn_index: int,
-        include_program: bool,
-        include_agent_utterance: bool,
-        include_described_entities: bool,
-        simp: bool,
-        remove_time_space: bool,
+    dialogue: Dialogue,
+    num_context_turns: int,
+    min_turn_index: int,
+    include_program: bool,
+    include_agent_utterance: bool,
+    include_described_entities: bool,
+    simp: bool,
 ) -> Iterator[OnmtTextDatum]:
     """Yields OnmtTextDatum for a dialogue."""
     turn_lookup: Dict[int, Turn] = {turn.turn_index: turn for turn in dialogue.turns}
@@ -267,21 +230,19 @@ def create_onmt_text_data_for_dialogue(
             include_agent_utterance=include_agent_utterance,
             include_described_entities=include_described_entities,
             simp=simp,
-            remove_time_space=remove_time_space
         )
         yield onmt_text_datum
 
 
 def main(
-        dataflow_dialogues_jsonl: str,
-        num_context_turns: int,
-        min_turn_index: int,
-        include_program: bool,
-        include_agent_utterance: bool,
-        include_described_entities: bool,
-        onmt_text_data_outbase: str,
-        simp: bool,
-        remove_time_space: bool
+    dataflow_dialogues_jsonl: str,
+    num_context_turns: int,
+    min_turn_index: int,
+    include_program: bool,
+    include_agent_utterance: bool,
+    include_described_entities: bool,
+    onmt_text_data_outbase: str,
+    simp: bool
 ) -> None:
     fps = OnmtTextDatum.create_output_files(onmt_text_data_outbase)
 
@@ -290,14 +251,13 @@ def main(
         dialogue = jsons.loads(line.strip(), Dialogue)
 
         for onmt_text_datum in create_onmt_text_data_for_dialogue(
-                dialogue=dialogue,
-                num_context_turns=num_context_turns,
-                min_turn_index=min_turn_index,
-                include_program=include_program,
-                include_agent_utterance=include_agent_utterance,
-                include_described_entities=include_described_entities,
-                simp=simp,
-                remove_time_space=remove_time_space,
+            dialogue=dialogue,
+            num_context_turns=num_context_turns,
+            min_turn_index=min_turn_index,
+            include_program=include_program,
+            include_agent_utterance=include_agent_utterance,
+            include_described_entities=include_described_entities,
+            simp=simp,
         ):
             for field_name, field_value in dataclasses.asdict(onmt_text_datum).items():
                 fp = fps[field_name]
@@ -343,12 +303,6 @@ def add_arguments(argument_parser: argparse.ArgumentParser) -> None:
         help="if True, include the described entities field for the context turn parts",
     )
     argument_parser.add_argument(
-        "--remove_time_space",
-        default=False,
-        action="store_true",
-        help="if True, removes space between time tokens, e.g. [..., '22', ':', '30', ...] becomes [..., '22:30', ...]"
-    )
-    argument_parser.add_argument(
         "--onmt_text_data_outbase",
         help="the output file basename for the extracted text data for OpenNMT",
     )
@@ -370,6 +324,5 @@ if __name__ == "__main__":
         include_agent_utterance=args.include_agent_utterance,
         include_described_entities=args.include_described_entities,
         onmt_text_data_outbase=args.onmt_text_data_outbase,
-        simp=args.simplify_format,
-        remove_time_space=args.remove_time_space
+        simp = args.simplify_format
     )

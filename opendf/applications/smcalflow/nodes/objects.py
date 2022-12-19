@@ -643,7 +643,7 @@ class Event(Node):
         self.fix_start_end()
         if any([i in self.inputs for i in ['start', 'end', 'duration']]):
             if 'slot' not in self.inputs:
-                d, e = self.call_construct_eval('TimeSlot()', self.context, constr_tag=WRAP_COLOR_TAG)
+                d, e = self.call_construct('TimeSlot()', self.context, constr_tag=WRAP_COLOR_TAG)
                 d.connect_in_out('slot', self)
             slot = self.inputs['slot']
             for i in ['start', 'end', 'duration']:

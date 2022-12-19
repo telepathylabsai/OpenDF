@@ -57,9 +57,9 @@ class FindPlaceAtHere(Node):
 
     def valid_input(self):
         if not self.input_view('place'):
-            raise MissingValueException.make_exc('place', self)
+            raise MissingValueException('place', self)
         if not self.input_view('radiusConstraint'):
-            raise MissingValueException.make_exc('radiusConstraint', self)
+            raise MissingValueException('radiusConstraint', self)
 
     def exec(self, all_nodes=None, goals=None):
         operator = self.input_view('place')
@@ -217,7 +217,7 @@ class PlaceFeature(Node):
             if feat.lower() not in self.POSSIBLE_VALUES:
                 raise InvalidOptionException(posname(1), feat, self.POSSIBLE_VALUES, self, hints='PlaceFeature')
         else:
-            raise MissingValueException.make_exc(posname(1), self)
+            raise MissingValueException(posname(1), self)
 
 
 class PlaceHasFeature(Node):
@@ -232,9 +232,9 @@ class PlaceHasFeature(Node):
 
     def valid_input(self):
         if not self.input_view('feature'):
-            raise MissingValueException.make_exc('feature', self)
+            raise MissingValueException('feature', self)
         if not self.input_view('place'):
-            raise MissingValueException.make_exc('place', self)
+            raise MissingValueException('place', self)
 
     def exec(self, all_nodes=None, goals=None):
         place = self.input_view('place')
@@ -290,7 +290,7 @@ class WeatherQueryApi(Node):
             if 'place' in self.inputs or 'time' in self.inputs:
                 raise IncompatibleInputException('Please, provide either event or (place, time)', self)
         elif not self.input_view('place'):
-            raise MissingValueException.make_exc('place', self)
+            raise MissingValueException('place', self)
 
     def exec(self, all_nodes=None, goals=None):
         place, tm, event = self.get_input_views(['place', 'time', 'event'])
@@ -356,11 +356,11 @@ class WeatherAggregate(Node):
 
     def valid_input(self):
         if not self.input_view('property'):
-            raise MissingValueException.make_exc('property', self)
+            raise MissingValueException('property', self)
         if not self.input_view('quantifier'):
-            raise MissingValueException.make_exc('quantifier', self)
+            raise MissingValueException('quantifier', self)
         if not self.input_view('table'):
-            raise MissingValueException.make_exc('table', self)
+            raise MissingValueException('table', self)
 
     def exec(self, all_nodes=None, goals=None):
         w = self.get_dat('table')
@@ -514,9 +514,9 @@ class IsWeatherCondition(Node):
     def valid_input(self):
         if not self.input_view('table'):
             if not self.input_view('place'):
-                raise MissingValueException.make_exc('place', self)
+                raise MissingValueException('place', self)
             if not self.input_view('time'):
-                raise MissingValueException.make_exc('time', self)
+                raise MissingValueException('time', self)
             pl, tm = self.input_view('place'), self.input_view('time')
             d, e = self.call_construct_eval('WeatherQueryApi(place=%s,time=%s)' % (id_sexp(pl), id_sexp(tm)), self.context)
             self.add_linked_input('table', d)
@@ -1133,9 +1133,9 @@ class DateTimeAndConstraintBetweenEvents(Node):
     def valid_input(self):
         ev1, ev2 = self.get_input_views(['event1', 'event2'])
         if not ev1:
-            raise MissingValueException.make_exc('event1', self)
+            raise MissingValueException('event1', self)
         if not ev2:
-            raise MissingValueException.make_exc('event2', self)
+            raise MissingValueException('event2', self)
         st, en = ev1.get_ext_view('slot.end'), ev2.get_ext_view('slot.start')
         if not st:
             raise InvalidValueException(f"Wrong input for event1 end: {st}", self)
@@ -1495,7 +1495,7 @@ class UpdatePreflightEventWrapper(Node):
     def valid_input(self):
         constr = self.input_view('constraint')
         if not constr:
-            raise MissingValueException.make_exc('constrain', self, message='What changes would you like to make to this event?')
+            raise MissingValueException('constrain', self, message='What changes would you like to make to this event?')
 
     # the way it works:
     # after the target event is found, it is converted into an event constraint tree, and is input to 'event'

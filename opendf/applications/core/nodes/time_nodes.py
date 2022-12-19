@@ -494,6 +494,7 @@ class Date(Node):
 
     def to_partialDateTime(self, mode=None):
         # assuming no operators around individual field; otherwise, use get_op_object per field.
+        self.get_dat('dow')
         return PartialDateTime(self.get_dat('year'), self.get_dat('month'), self.get_dat('day'), self.get_dat('dow'))
 
     def to_partialInterval(self):
@@ -571,9 +572,9 @@ class Date(Node):
         return self.get_dat('year'), self.get_dat('month'), self.get_dat('day'), self.get_dat('dow'), None, None
 
     def get_Pdate(self):
-        pr = self.to_partialDateTime()
-        if pr.is_complete_date():
-            return pr.to_pdate(), pr.date_str()
+        year, month, day = self.get_dat('year'), self.get_dat('month'), self.get_dat('day')
+        if year is not None and month and day:
+            return date(year, month, day), f"Date(year={year}, month={month}, day={day})"
         return None, ''
 
     def to_Pdate(self, yr=None, mn=None, dy=None, p=None):

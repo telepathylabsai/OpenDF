@@ -84,7 +84,6 @@ def construct_graph(sexp, d_context, register=True, top_only=False, constr_tag=R
     # print('\n++++ : ' + sexp)
 
     d_context = d_context if d_context or register == False else DialogContext()
-
     try:
         prs = parse_p_expressions(sexp)
     except Exception as ex:

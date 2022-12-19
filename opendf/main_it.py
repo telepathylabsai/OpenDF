@@ -7,7 +7,7 @@ import traceback
 
 from opendf.applications.smcalflow.database import populate_stub_database, Database
 from opendf.applications.smcalflow.domain import fill_graph_db
-from opendf.applications.smcalflow.fill_type_info import fill_type_info
+from opendf.applications.fill_type_info import fill_type_info
 from opendf.defs import EnvironmentDefinition, OUTLINE_SIMP, SUGG_IMPL_AGR, SUGG_MSG, use_database
 from opendf.dialog import d_context
 from opendf.exceptions import DFException, parse_node_exception

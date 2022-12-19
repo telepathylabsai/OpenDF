@@ -183,3 +183,4 @@ class Add(Node):
         r = p1 + p2
         d, e = self.call_construct_eval('Int(%d)' % r, self.context)
         self.set_result(d)
+

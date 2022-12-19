@@ -6,6 +6,7 @@ import os
 import json
 import re
 import argparse
+import time
 
 import yaml
 
@@ -107,6 +108,7 @@ draw_one_graph = None
 # d_context.suppress_exceptions = True  # avoid exit in
 
 environment_definitions = EnvironmentDefinition.get_instance()
+
 
 # fill_type_info(node_fact)
 
@@ -357,6 +359,7 @@ def create_arguments_parser():
 
 
 if __name__ == "__main__":
+    start = time.time()
     try:
         parser = create_arguments_parser()
         arguments = parser.parse_args()
@@ -373,6 +376,9 @@ if __name__ == "__main__":
     except Exception as e:
         logger.exception(e)
     finally:
+        end = time.time()
+        logger.info(f"Total running time: {end - start:.3f}s")
         logging.shutdown()
 # stats on lengths:
-#  grep "counts: " conv.train | grep -v XX | awk 'BEGIN{n=0; a=0;  c=0;}{n+=1; a+=$4;  c+=$7;}END{printf("%d - %.2f  %.2f\n", n, 1.0*a/n,  1.0*c/n )}'
+#  grep "counts: " conv.train | grep -v XX | awk 'BEGIN{n=0; a=0;  c=0;}{n+=1; a+=$4;  c+=$7;}END{printf("%d - %.2f
+#  %.2f\n", n, 1.0*a/n,  1.0*c/n )}'

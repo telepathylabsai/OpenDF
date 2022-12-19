@@ -4,7 +4,7 @@ Parser for P-expressions.
 import re
 
 # noinspection PyUnresolvedReferences
-from typing import List, Optional, Any, Tuple
+from typing import List, Optional, Any, Tuple, Dict
 
 # TODO: add ply to requirements, when it is ready
 # noinspection PyPackageRequirements
@@ -13,7 +13,7 @@ import ply.lex as lex
 import ply.yacc as yacc
 
 # IDENTIFIER_EXPRESSION = r"[:a-zA-Z0-9_-][^\=,\(\)\<\>\{\}\#\$]*"
-from opendf.exceptions.python_exception import LexerException, ParserException
+from opendf.exceptions.python_exception import LexerException, ParserException, UnfinishedParserException
 
 IDENTIFIER_EXPRESSION = r"[;:a-zA-Z0-9_\-\+\#][^\=,\(\)]*"
 # IDENTIFIER_EXPRESSION = r"[:a-zA-Z0-9_-][^\=,\(\)]*"
@@ -90,6 +90,33 @@ class ASTNode:
     Represents a P-expression node of the Abstract Syntax Tree (AST)
     """
 
+    @property
+    def children(self):
+        """
+        Method required to compute the distance between AST tree using the Zhang-Shasha
+        Tree Edit Distance (TED) method.
+
+        Returns the name of the node.
+
+        :return: the list of children of the node
+        :rtype: List[ASTNode]
+        """
+
+        return [x[-1] for x in self.inputs]
+
+    @property
+    def label(self):
+        """
+        Method required to compute the distance between AST tree using the Zhang-Shasha
+        Tree Edit Distance (TED) method.
+
+        Returns the name of the node.
+
+        :return: the name of the node
+        :rtype: str
+        """
+        return self.name
+
     def __init__(self, name, inputs=(), tags=(), parent=None, role=None, set_assign=None, special_features=None,
                  is_terminal=False, is_assign=False):
         f"""
@@ -158,7 +185,9 @@ class ASTNode:
                 if name:
                     input_str.append(f"{TAG_CHAR}{name}={value}")
                 else:
-                    input_str.append(f"^{value}")   # TODO - fix - if no '=...' given, then we have only a name (not a value) - fix in add_tags as well
+                    input_str.append(f"^{value}")
+                    # TODO - fix - if no '=...' given,
+                    #   then we have only a name (not a value) - fix in add_tags as well
             if input_str:
                 message += ", ".join(input_str)
             message += ")"
@@ -310,6 +339,8 @@ class PExpLexer:
 def _split_input_and_tags(values):
     inputs = []
     tags = []
+    if values and values[-1] is None:
+        values = values[:-1]
     for name, value in values:
         if name is None or name[0] != TAG_CHAR:
             inputs.append((name, value))
@@ -340,6 +371,9 @@ class PExpParser:
 
         self.parsed_trees: List[ASTNode] = []
 
+        self.parameter_name_stack: Dict[int, List[str]] = {}
+        self.node_stack: List[str] = []
+
     def parse(self, expressions):
         """
         Parses the `expressions`.
@@ -350,6 +384,8 @@ class PExpParser:
         :rtype: List[ASTNode]
         """
         self.parsed_trees = []
+        self.parameter_name_stack = {}
+        self.node_stack = []
         self.parser.parse(input=expressions, lexer=self.lexer)
         value = self.parsed_trees
         self.parsed_trees = []
@@ -388,8 +424,13 @@ class PExpParser:
         """simple_parameter : value"""
         p[0] = (None, p[1])
 
+    def p_named_parameter(self, p):
+        """named_parameter : name """
+        p[0] = p[1]
+        self.parameter_name_stack.setdefault(len(self.node_stack) - 1, []).append(p[1])
+
     def p_parameter_name_value(self, p):
-        """simple_parameter : name NAME_VALUE_SEPARATOR value"""
+        """simple_parameter : named_parameter NAME_VALUE_SEPARATOR value"""
         p[0] = (p[1], p[3])
 
     def p_tag_parameter(self, p):
@@ -427,10 +468,20 @@ class PExpParser:
         """value : expression"""
         p[0] = p[1]
 
+    def p_node_name(self, p):
+        """node_name : IDENTIFIER"""
+        p[0] = p[1]
+        self.node_stack.append(p[1])
+
     def p_expression(self, p):
-        """expression : IDENTIFIER OPEN_ARGUMENTS parameters CLOSE_ARGUMENTS"""
+        """expression : node_name OPEN_ARGUMENTS parameters CLOSE_ARGUMENTS"""
         inputs, tags = _split_input_and_tags(p[3])
         p[0] = ASTNode(p[1].strip(), inputs=inputs, tags=tags)
+        self.node_stack.pop()
+        # removes the parameters from resolved nodes from the stack
+        node_index = len(self.node_stack)
+        if node_index in self.parameter_name_stack:
+            del self.parameter_name_stack[node_index]
 
     def p_value_terminal_identifier(self, p):
         """value : IDENTIFIER"""
@@ -444,11 +495,36 @@ class PExpParser:
         p[0] = ASTNode(unquoted, is_terminal=True)
 
     def p_error(self, p):
+        if p is None:
+            raise UnfinishedParserException()
         raise ParserException(p)
+        # TODO: add an exception for unbalanced parentheses
 
 
 lexer = PExpLexer()
 parser = PExpParser(lexer)
+
+
+def tokenize_p_expressions(expressions, with_lexer=lexer):
+    """
+    Tokenizes the P-expression in `expressions`.
+
+    :param expressions: the P-expressions
+    :type expressions: str
+    :param with_lexer: the lexer object to use
+    :type with_lexer: PExpLexer
+    :return: the list of tokens
+    :rtype: List[Token]
+    """
+
+    with_lexer.input(expressions)
+    tokens = []
+    token = with_lexer.token()
+    while token:
+        tokens.append(token)
+        token = with_lexer.token()
+
+    return tokens
 
 
 def parse_p_expressions(expressions):

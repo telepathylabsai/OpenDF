@@ -232,7 +232,7 @@ class BookHotel(Node):
         #self.update_mwoz_state()
 
         if 'hotel' not in self.inputs:
-            raise MissingValueException('Please specify what hotel you are looking for', self)
+            raise MissingValueException('hotel', self, 'Please specify what hotel you are looking for')
         hotel = self.input_view('hotel')
         context = self.context
 
@@ -282,11 +282,11 @@ class BookHotel(Node):
             d.connect_in_out('book_info', self)
         binf = self.inputs['book_info']
         if 'bookstay' not in binf.inputs:
-            raise MissingValueException(msg+'For how many days?', self)  # todo - add hint - to avoid confusing with num people?
+            raise MissingValueException('bookstay', self, msg+'For how many days?')  # todo - add hint - to avoid confusing with num people?
         if 'bookpeople' not in binf.inputs:
-            raise MissingValueException(msg+'For how many people?', self)
+            raise MissingValueException('bookpeople', self, msg+'For how many people?')
         if 'bookday' not in binf.inputs:
-            raise MissingValueException(msg+'Starting which day?', self)
+            raise MissingValueException('bookday', self, msg+'Starting which day?')
         ok, conf_code = check_hotel_availability(hotel, binf, book_fields)
         if ok:
             d, e = self.call_construct_eval('BookHotelConfirmation(hotel=%s, book_info=%s, conf_code=%s)' %
@@ -564,6 +564,7 @@ class FindHotel(Node):
     #          found hotel (even if that value was not specified by the user in the constraint)
     #          - this can occur e.g. due to annotation error, where a field gets mentioned later than it actually was
     def on_duplicate(self, dup_tree=False):
+        super().on_duplicate(dup_tree=dup_tree)
         # old = self.dup_of.input_view('hotel')
         old = self.dup_of.res if self.dup_of.res != self.dup_of else self.dup_of.input_view('hotel')
         curr = self.input_view('hotel')
@@ -705,7 +706,7 @@ class get_hotel_info(Node):
             if m:
                 hotel = m[0]
             else:
-                raise MissingValueException('I can give information only after we have selected one hotel', self)
+                raise MissingValueException('hotel', self, 'I can give information only after we have selected one hotel')
         if hotel:
             fts = []
             fts += [self.input_view(i).dat for i in self.inputs if is_pos(i)]

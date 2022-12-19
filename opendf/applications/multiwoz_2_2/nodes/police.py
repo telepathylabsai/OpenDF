@@ -326,7 +326,7 @@ class get_police_info(Node):
             if m:
                 police = m[0]
             else:
-                raise MissingValueException('I can give information only after we have selected one police', self)
+                raise MissingValueException('police', self, 'I can give information only after we have selected one police')
 
         if police:
             fts = []

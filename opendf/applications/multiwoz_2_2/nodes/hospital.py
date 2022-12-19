@@ -321,7 +321,7 @@ class get_hospital_info(Node):
             if m:
                 hospital = m[0]
             else:
-                raise MissingValueException('I can give information only after we have selected one hospital', self)
+                raise MissingValueException('hospital', self, 'I can give information only after we have selected one hospital')
 
         if hospital:
             fts = []

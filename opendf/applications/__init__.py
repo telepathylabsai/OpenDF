@@ -5,7 +5,7 @@ import abc
 
 from opendf.applications.multiwoz_2_2.domain import fill_multiwoz_db, MultiWOZContext
 from opendf.applications.multiwoz_2_2.multiwoz_db import fill_multiwoz_sql_db, MultiWozSqlDB
-from opendf.applications.smcalflow.fill_type_info import fill_type_info
+from opendf.applications.fill_type_info import fill_type_info
 from opendf.defs import use_database
 from opendf.graph.dialog_context import DialogContext
 from opendf.graph.node_factory import NodeFactory
@@ -27,7 +27,10 @@ class EnvironmentClass(abc.ABC):
 
 
 class SMCalFlowEnvironment(EnvironmentClass):
-    DEFAULT_NODES = ["opendf.applications.smcalflow.nodes.functions"]
+    DEFAULT_NODES = [
+        "opendf.applications.smcalflow.nodes.functions",
+        "opendf.applications.sandbox.sandbox"
+    ]
     SIMPLIFICATION_NODES = ["opendf.applications.simplification.nodes.smcalflow_nodes"]
 
     def get_new_context(self):

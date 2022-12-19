@@ -6,7 +6,7 @@ import argparse
 from opendf.graph.constr_graph import construct_graph
 from opendf.graph.eval import evaluate_graph, check_dangling_nodes
 from opendf.graph.draw_graph import draw_all_graphs
-from opendf.applications.smcalflow.fill_type_info import fill_type_info
+from opendf.applications.fill_type_info import fill_type_info
 from opendf.graph.node_factory import NodeFactory
 from opendf.defs import *
 from opendf.graph.dialog_context import DialogContext
