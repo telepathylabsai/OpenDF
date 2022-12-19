@@ -4,9 +4,9 @@ The main entry point to run the dataflow graphs.
 import argparse
 import time
 import yaml
+import importlib.machinery
 
-from opendf.applications import EnvironmentClass
-from opendf.examples.main_examples import dialogs
+from opendf.applications import EnvironmentClass, SMCalFlowEnvironment
 from opendf.graph.constr_graph import construct_graph, check_constr_graph
 from opendf.graph.eval import evaluate_graph, check_dangling_nodes
 from opendf.graph.draw_graph import draw_all_graphs
@@ -21,7 +21,7 @@ from opendf.utils.simplify_exp import indent_sexp
 # PYTHONPATH=$(pwd) python opendf/main.py
 
 # the main function gets S-exps as input, and executes them one by one.
-# input is taken from dialogs in opendf.examples.main_examples
+# input is taken from dialogs in the examples file, by default `opendf.examples.main_examples`
 
 logger = logging.getLogger(__name__)
 environment_definitions = EnvironmentDefinition.get_instance()
@@ -36,7 +36,7 @@ def create_arguments_parser():
     """
     parser = argparse.ArgumentParser(
         description="The main entry point to run the dataflow graphs. It runs examples from the "
-                    "`opendf/examples/main_examples.py` file.",
+                    "examples file.",
         formatter_class=argparse.ArgumentDefaultsHelpFormatter
     )
 
@@ -48,12 +48,27 @@ def create_arguments_parser():
     parser.add_argument(
         "--dialog_id", "-d", metavar="dialog_id", type=int, required=False, default=0,
         help="the dialog id to use. "
-             "This should be the index of a dialog defined in the `opendf/examples/main_examples.py` file"
+             "This should be the index of a dialog defined in the examples file"
+    )
+
+    parser.add_argument(
+        "--examples_file", "-ef", metavar="examples_file", type=str, required=False,
+        default="opendf/examples/main_examples.py",
+        help="the examples files to use, `dialog_id` will specify an example in this file"
     )
 
     parser.add_argument(
         "--expression", "-e", metavar="exp", type=str, required=False, default=None, nargs="+",
         help="the expression to run. If set, `dialog_id` will be ignored"
+    )
+
+    parser.add_argument(
+        "--additional_nodes", "-n", metavar="additional_nodes", type=str, required=False,
+        default=None, nargs="+",
+        help="path for python modules containing additional nodes to be imported. "
+             "The path should be in python dot notation "
+             "(e.g. `opendf.applications.sandbox.sandbox`) "
+             "This argument only works when using `SMCalFlowEnvironment` as environment class"
     )
 
     parser.add_argument(
@@ -73,7 +88,7 @@ def create_arguments_parser():
     return parser
 
 
-def get_user_trans(dialog_id, turn):
+def get_user_trans(dialog_id, turn, dialogs):
     if dialog_id < len(dialogs) and turn < len(dialogs[dialog_id]):
         d, cont = dialogs[dialog_id][turn], False
         if d.startswith(CONT_TURN):
@@ -82,22 +97,26 @@ def get_user_trans(dialog_id, turn):
     return None, False
 
 
-def print_dialog(dialog_id):
+def print_dialog(dialog_id, dialogs):
     if dialog_id < len(dialogs):
         for d in dialogs[dialog_id]:
             logger.info(d)
 
 
-def dialog(dialog_id, d_context, draw_graph=True):
+def dialog(dialog_id, dialogs, d_context, draw_graph=True, p_expressions=None):
     """
     This main function gets P-exps as input, and executes them one by one.
-    The input is taken from `dialogs` in `opendf.examples.main_examples.py`.
+    The input is taken from `dialogs` in `examples_file`.
 
     :param dialog_id: the id of the dialog,
-    it will take the dialog from the list defined in `opendf.examples.main_examples.py`
+    it will take the dialog from the list defined in `examples_file`
     :type dialog_id: int
+    :param dialogs: the list of dialogs, as P-expressions
+    :type dialogs: List[List[str]]
     :param draw_graph: if `True`, it will draw the resulting graph
     :type draw_graph: bool
+    :param p_expressions: a list of P-Expressions to run, if given, it will override `dialog_id`
+    :type p_expressions: Optional[List[str]]
     :return: Tuple[Node, Optional[Exception]]
     :rtype: the generated graph and the exception, if exists
     """
@@ -107,12 +126,16 @@ def dialog(dialog_id, d_context, draw_graph=True):
     psexp = None  # prev sexp
     i_utter = 0
 
+    if p_expressions:
+        dialogs.append(p_expressions)
+        dialog_id = -1
+
     logger.info('dialog #%d', dialog_id)
-    print_dialog(dialog_id)
+    print_dialog(dialog_id, dialogs)
     gl = None
     while not end_of_dialog:
         # 1. get user processed input (sexp format)
-        isexp, cont = get_user_trans(dialog_id, i_utter)
+        isexp, cont = get_user_trans(dialog_id, i_utter, dialogs)
         if isexp is None:
             break
 
@@ -129,7 +152,8 @@ def dialog(dialog_id, d_context, draw_graph=True):
         igl, ex = construct_graph(isexp, d_context, constr_tag=OUTLINE_SIMP, no_post_check=True)
 
         # apply implicit accept suggestion if needed. This is when prev turn gave suggestions, and one of them was
-        #   marked as implicit-accept (SUGG_IMPL_AGR) (i.e. apply it if the user moves to another topic without accept or reject)
+        #   marked as implicit-accept (SUGG_IMPL_AGR) (i.e. apply it if the user moves to another topic without
+        #   accept or reject)
         # do this BEFORE trans_simple - since trans_simple may look at context.goals  (e.g. for side_task)
         if d_context.prev_sugg_act:
             j = [s[2:] for s in d_context.prev_sugg_act if s.startswith(SUGG_IMPL_AGR)]
@@ -179,12 +203,14 @@ def dialog(dialog_id, d_context, draw_graph=True):
     return gl, ex
 
 
-def main(dialog_id, environment_class: EnvironmentClass, draw_graph=True, output_path=None):
+def main(dialog_id, dialogs, environment_class: EnvironmentClass,
+         draw_graph=True, output_path=None, p_expressions=None):
     try:
         d_context = environment_class.get_new_context()
         environment_class.d_context = d_context
         with environment_class:
-            gl, ex = dialog(dialog_id, d_context, draw_graph=draw_graph)
+            gl, ex = dialog(dialog_id, dialogs, d_context,
+                            draw_graph=draw_graph, p_expressions=p_expressions)
 
             if output_path:
                 from os.path import splitext
@@ -214,12 +240,17 @@ if __name__ == "__main__":
             environment_definitions.update_values(**arguments.environment)
 
         application_config = yaml.load(open(arguments.config, 'r'), Loader=yaml.UnsafeLoader)
+        environment_class = application_config["environment_class"]
 
-        if arguments.expression:
-            dialogs.append(arguments.expression)
-            id_arg = -1
+        if isinstance(environment_class, SMCalFlowEnvironment) and arguments.additional_nodes:
+            environment_class.additional_paths = arguments.additional_nodes
 
-        main(id_arg, application_config["environment_class"], output_path=arguments.output)
+        loader = importlib.machinery.SourceFileLoader("dialogs", arguments.examples_file)
+        examples_file = loader.load_module()
+        dialogs = examples_file.dialogs
+
+        main(id_arg, dialogs, environment_class,
+             output_path=arguments.output, p_expressions=arguments.expression)
     except Exception as e:
         raise e
     finally:

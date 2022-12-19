@@ -34,16 +34,18 @@ class SMCalFlowEnvironment(EnvironmentClass):
         return DialogContext()
 
     # d_context is only used for graph_db
-    def __init__(self, d_context=None, simplification=False):
+    def __init__(self, d_context=None, simplification=False, additional_paths=()):
         super(SMCalFlowEnvironment, self).__init__()
         self.d_context = d_context
         self.simplification = simplification
         self.stub_data_file = "opendf/applications/smcalflow/data_stub.json"
+        self.additional_paths = list(additional_paths)
 
     def load_node_factory(self):
         # init type info
         node_fact = NodeFactory.get_instance()
         nodes = self.SIMPLIFICATION_NODES if self.simplification else self.DEFAULT_NODES
+        nodes = list(nodes) + self.additional_paths
         fill_type_info(node_fact, node_paths=nodes)
 
     def __enter__(self):

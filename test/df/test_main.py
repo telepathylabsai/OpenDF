@@ -14,6 +14,7 @@ from opendf.applications.smcalflow.nodes.objects import Event
 from opendf.defs import use_database, posname, config_log
 from opendf.applications.smcalflow.exceptions.df_exception import BadEventConstraintException, \
     NoEventSuggestionException
+from opendf.examples.main_examples import dialogs
 from opendf.graph.node_factory import NodeFactory
 from opendf.graph.nodes.framework_functions import Yield, revise
 from opendf.graph.nodes.framework_objects import Bool
@@ -48,7 +49,7 @@ class TestMain(unittest.TestCase):
                 database.clear_database()
 
     def test_input_with_id_1(self):
-        graph, ex = dialog(1, self.d_context, draw_graph=False)
+        graph, ex = dialog(1, dialogs, self.d_context, draw_graph=False)
 
         # checking value
         value = graph.typename()
@@ -65,7 +66,7 @@ class TestMain(unittest.TestCase):
             f"Expected an confirmation exception with more than {expected_len} arguments, found {exception_len}")
 
     def test_input_with_id_2(self):
-        graph, ex = dialog(2, self.d_context, draw_graph=False)
+        graph, ex = dialog(2, dialogs, self.d_context, draw_graph=False)
 
         # checking value
         value = graph.typename()
@@ -87,7 +88,7 @@ class TestMain(unittest.TestCase):
             f"Expected an confirmation exception with more than {expected_len} arguments, found {exception_len}")
 
     def test_input_with_id_3(self):
-        graph, ex = dialog(3, self.d_context, draw_graph=False)
+        graph, ex = dialog(3, dialogs, self.d_context, draw_graph=False)
 
         # checking value
         value = graph.typename()
@@ -102,7 +103,7 @@ class TestMain(unittest.TestCase):
                         f"Expected an exception of type {exception_type.__name__}, found {ex[0].__class__.__name__}")
 
     def test_input_with_id_4(self):
-        graph, ex = dialog(4, self.d_context, draw_graph=False)
+        graph, ex = dialog(4, dialogs, self.d_context, draw_graph=False)
 
         # checking value
         value = graph.typename()
@@ -117,7 +118,7 @@ class TestMain(unittest.TestCase):
             f"Expected an confirmation exception with more than {expected_len} arguments, found {exception_len}")
 
     def test_input_with_id_5(self):
-        root, ex = dialog(5, self.d_context, draw_graph=False)
+        root, ex = dialog(5, dialogs, self.d_context, draw_graph=False)
 
         # checking value
         graph = root
@@ -136,7 +137,7 @@ class TestMain(unittest.TestCase):
         self.assertEqual(events_len, expected_len, f"Expected {expected_len} arguments, found {events_len}")
 
     def test_input_with_id_6(self):
-        root, ex = dialog(6, self.d_context, draw_graph=False)
+        root, ex = dialog(6, dialogs, self.d_context, draw_graph=False)
 
         # checking value
         graph = root
@@ -151,7 +152,7 @@ class TestMain(unittest.TestCase):
         self.assertEqual(value, expected, f"Expected {expected}, found {value}!")
 
     def test_input_with_id_7(self):
-        root, ex = dialog(7, self.d_context, draw_graph=False)
+        root, ex = dialog(7, dialogs, self.d_context, draw_graph=False)
 
         # checking value
         graph = root
@@ -166,7 +167,7 @@ class TestMain(unittest.TestCase):
         self.assertEqual(value, expected, f"Expected {expected}, found {value}!")
 
     def test_input_with_id_8(self):
-        root, ex = dialog(8, self.d_context, draw_graph=False)
+        root, ex = dialog(8, dialogs, self.d_context, draw_graph=False)
 
         # checking value
         graph = root
@@ -180,7 +181,7 @@ class TestMain(unittest.TestCase):
         self.assertEqual(value, expected, f"Expected {expected} event, found {value}!")
 
     def test_input_with_id_9(self):
-        root, ex = dialog(9, self.d_context, draw_graph=False)
+        root, ex = dialog(9, dialogs, self.d_context, draw_graph=False)
 
         # checking value
         graph = root
@@ -195,7 +196,7 @@ class TestMain(unittest.TestCase):
         self.assertEqual(value, expected, f"Expected {expected} event, found {value}!")
 
     def test_input_with_id_10(self):
-        root, ex = dialog(10, self.d_context, draw_graph=False)
+        root, ex = dialog(10, dialogs, self.d_context, draw_graph=False)
 
         # checking value
         graph = root
@@ -214,7 +215,7 @@ class TestMain(unittest.TestCase):
         self.assertEqual(data, expected, f"Expected {expected}, found {value}!")
 
     def test_input_with_id_11(self):
-        root, ex = dialog(11, self.d_context, draw_graph=False)
+        root, ex = dialog(11, dialogs, self.d_context, draw_graph=False)
 
         # checking value
         graph = root

@@ -1,7 +1,7 @@
 # OpenDF
 ### Open Pythonic Dataflow Dialogue Framework
 
-NEWLY ADDED - [dataflow application development tutorial](./app_dev_tutorial.pdf)
+NEWLY ADDED - [dataflow application development tutorial](tutorial/app_dev_tutorial.pdf)
  
 This package is an implementation of (and interpretation) of the dataflow paradigm for dialogue systems which has been introduced by Microsoft's Semantic Machines in the paper
 [Task oriented dialogue as dataflow synthesis](https://arxiv.org/abs/2009.11423), and which was accompanied by a large dataset
