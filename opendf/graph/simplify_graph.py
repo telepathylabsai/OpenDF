@@ -51,7 +51,7 @@ def simplify_graph(nd, d_context, mode=None):
 
 # transform a node, and then transform its children (top to bottom)
 # for now - translation stops when an error occurs - maybe we should continue anyway (and report just one error)?
-# important - if the trans_simple replaces the node it is called on,
+# important - if the transform_graph replaces the node it is called on,
 #             it must return the new node from which to continue traversing the graph
 def recursive_simplify(n, d_context, top, e, mode, avoid=None):
     avoid = [] if not avoid else to_list(avoid)
@@ -90,7 +90,7 @@ def pre_simplify_graph(nd, d_context):
 
 # transform a node, and then transform its children (top to bottom)
 # for now - translation stops when an error occurs - maybe we should continue anyway (and report just one error)?
-# important - if the trans_simple replaces the node it is called on,
+# important - if the transform_graph replaces the node it is called on,
 #             it must return the new node from which to continue traversing the graph
 def recursive_pre_simplify(n, d_context, top, e, mode):
     if not e:

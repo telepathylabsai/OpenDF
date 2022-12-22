@@ -5,18 +5,18 @@ import unittest
 
 from opendf.applications.smcalflow.database import Database, populate_stub_database
 from opendf.applications.smcalflow.domain import fill_graph_db
-from opendf.applications.smcalflow.fill_type_info import fill_type_info
+from opendf.applications.fill_type_info import fill_type_info
 from opendf.applications.smcalflow.nodes.functions import DeleteCommitEventWrapper, UpdateCommitEventWrapper, \
     FindEvents, \
     WillSnow
 from opendf.applications.smcalflow.nodes.modifiers import with_attendee, starts_at
 from opendf.applications.smcalflow.nodes.objects import Event
-from opendf.defs import use_database, posname, config_log
+from opendf.defs import use_database, config_log
 from opendf.applications.smcalflow.exceptions.df_exception import BadEventConstraintException, \
     NoEventSuggestionException
 from opendf.examples.main_examples import dialogs
 from opendf.graph.node_factory import NodeFactory
-from opendf.graph.nodes.framework_functions import Yield, revise
+from opendf.graph.nodes.framework_functions import revise
 from opendf.graph.nodes.framework_objects import Bool
 from opendf.graph.nodes.framework_operators import GTf
 from opendf.graph.nodes.node import Node

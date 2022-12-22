@@ -965,7 +965,7 @@ class getattr(Node):
         m2 = nd.getattr_yield_msg(attr, m1.text, params=params)
         return Message(m2.text, objects=m1.objects + m2.objects)
 
-    def trans_simple(self, top):
+    def transform_graph(self, top):
         nd = self.input_view(posname(2))
         # add a 'singleton' wrapper around input nodes which may return multiple results
         if nd and nd.signature.multi_res == True:  # or maybe even just != False
@@ -1271,8 +1271,8 @@ class AcceptSuggestion(Node):
                 #         and another branch of the 'do' consumes the effect of accept suggestion
                 hold_sugg = self.context.prev_sugg_act
                 self.context.prev_sugg_act = None
-                # the command from the suggestions did not pass through trans_simple - do it here (if dialog_simp)
-                g, e = self.call_construct_eval(sexp, self.context, do_trans_simp=True)
+                # the command from the suggestions did not pass through transform_graph - do it here (if dialog_simp)
+                g, e = self.call_construct_eval(sexp, self.context, do_transform=True)
                 self.set_result(g)
                 self.context.prev_sugg_act = hold_sugg  # TODO do we really want to re-use suggestions??
                 if e:
@@ -1306,7 +1306,7 @@ class RejectSuggestion(Node):
                 if sexp:
                     hold_sugg = self.context.prev_sugg_act
                     self.context.prev_sugg_act = None
-                    g, e = Node.call_construct_eval(sexp, self.context, do_trans_simp=True)
+                    g, e = Node.call_construct_eval(sexp, self.context, do_transform=True)
                     self.set_result(g)
                     self.context.prev_sugg_act = hold_sugg
                     if e:
@@ -1343,8 +1343,8 @@ class MoreSuggestions(Node):
                     sexp = sexp[2:]
                 if SUGG_MSG in sexp:  # message to user
                     sexp = sexp.split(SUGG_MSG)[0]
-                # the command from the suggestions did not pass through trans_simple - do it here (if dialog_simp)
-                g, e = self.call_construct_eval(sexp, self.context, do_trans_simp=True)
+                # the command from the suggestions did not pass through transform_graph - do it here (if dialog_simp)
+                g, e = self.call_construct_eval(sexp, self.context, do_transform=True)
                 self.set_result(g)
                 if e:
                     re_raise_exc(e)  # pass on exception
@@ -1670,7 +1670,7 @@ class allows(Node):
 class side_task(Node):
     def __init__(self):
         super().__init__(Node)  # dynamic out type
-        self.signature.add_sig('task', Node)  # this will be moved to pos1
+        self.signature.add_sig('task', Node)  # side task - this will be moved to pos1
         self.signature.add_sig('persist', Bool)  # Unless persist=True, the side task will be removed from the graph
         self.signature.add_sig('silent', Bool)   # don't create a message for task (but copy if one already exists) (temp)
         self.signature.add_sig('multiturn', Bool)   # if false (default) - make sure it goes away after one turn
@@ -1681,7 +1681,7 @@ class side_task(Node):
         p = self.input_view(posname(1))
         return p.yield_msg(params) if p else Message('')  # chain messaging
 
-    def trans_simple(self, top):
+    def transform_graph(self, top):
         if 'task' in self.inputs:  # move input 'task' to pos1 - this shows that we have not yet transformed this node
             task = self.inputs['task']
             self.disconnect_input('task')
@@ -1795,8 +1795,8 @@ class restore_state(Node):
         super().__init__(Node)  # dynamic out type
         # self.signature.add_sig(posname(1), Int)  # in case there are several return points (for now only one expected)
 
-    # we could do this with trans_simple, or with exec
-    # def trans_simple(self, top):
+    # we could do this with transform_graph, or with exec
+    # def transform_graph(self, top):
     #     n = self
     #     if self.context.restore_points:
     #         pnm, parent = self.get_parent()

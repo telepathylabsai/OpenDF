@@ -19,7 +19,7 @@ from opendf.exceptions import parse_node_exception, re_raise_exc, DFException
 from opendf.graph.constr_graph import construct_graph, check_constr_graph
 from opendf.graph.draw_graph import draw_all_graphs
 from opendf.graph.eval import evaluate_graph, check_dangling_nodes
-from opendf.graph.transform_graph import trans_graph
+from opendf.graph.transform_graph import do_transform_graph
 from opendf.utils.arg_utils import add_environment_option
 from opendf.utils.simplify_exp import indent_sexp
 from opendf.utils.utils import to_list, flatten_list
@@ -420,7 +420,7 @@ def dialog(dialogue, d_context, draw_graph=True, use_dialog_act=False, patch=Non
 
             # apply implicit accept suggestion if needed. This is when prev turn gave suggestions, and one of them was
             #   marked as implicit-accept (SUGG_IMPL_AGR) (i.e. apply it if the user moves to another topic without accept or reject)
-            # do this BEFORE trans_simple - since trans_simple may look at context.goals  (e.g. for side_task)
+            # do this BEFORE transform_graph - since transform_graph may look at context.goals  (e.g. for side_task)
             if d_context.prev_sugg_act:
                 j = [s[2:] for s in d_context.prev_sugg_act if s.startswith(SUGG_IMPL_AGR)]
                 if j and not isexp.startswith('AcceptSuggestion') and not isexp.startswith('RejectSuggestion'):
@@ -435,7 +435,7 @@ def dialog(dialogue, d_context, draw_graph=True, use_dialog_act=False, patch=Non
                             if ms:
                                 d_context.add_message(gl0, ms)
 
-            gl, ex = trans_graph(igl)
+            gl, ex = do_transform_graph(igl)
 
             check_constr_graph(gl)
 

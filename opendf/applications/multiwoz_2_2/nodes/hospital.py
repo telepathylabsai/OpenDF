@@ -266,7 +266,7 @@ class revise_hospital(revise):
     def valid_input(self):  # override the revise valid_input
         pass
 
-    def trans_simple(self, top):
+    def transform_graph(self, top):
         if 'department' in self.inputs:
             n = self.input_view('department')
             if n.typename()=='Department':
@@ -304,7 +304,7 @@ class get_hospital_info(Node):
         #self.signature.add_sig('feats', Node)
         self.signature.add_sig(POS, Str)
 
-    def trans_simple(self, top):
+    def transform_graph(self, top):
         pnm, parent = self.get_parent()
         if parent.typename()!='side_task':
             if PERSIST_SIDE:

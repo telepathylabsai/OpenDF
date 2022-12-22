@@ -588,7 +588,7 @@ class FindHotel(Node):
 #     def __init__(self):
 #         super().__init__()
 #
-#     def trans_simple(self, top):
+#     def transform_graph(self, top):
 #         pnm, parent = self.get_parent()
 #         prms = ['%s=%s' % (i, id_sexp(self.input_view(i))) for i in self.inputs if i in self.inputs]
 #         s = 'revise(old=Hotel??(), new=Hotel?(%s), newMode=overwrite)' % ','.join(prms)
@@ -625,7 +625,7 @@ class revise_hotel(revise):
     def valid_input(self):  # override the revise valid_input
         pass
 
-    def trans_simple(self, top):
+    def transform_graph(self, top):
         if 'name' in self.inputs:
             n = self.input_view('name')
             if n.typename()=='Name':
@@ -689,7 +689,7 @@ class get_hotel_info(Node):
         # self.signature.add_sig('feats', Node)
         self.signature.add_sig(POS, Str)
 
-    def trans_simple(self, top):
+    def transform_graph(self, top):
         pnm, parent = self.get_parent()
         if parent.typename()!='side_task':
             if PERSIST_SIDE:

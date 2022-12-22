@@ -290,5 +290,4 @@ dialogs = [
     [
         'GTf(size(FindEvents(starts_at(GT(singleton(FindEvents(with_attendee(jack))))))), Int(1))',
     ],
-
 ]

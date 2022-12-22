@@ -309,7 +309,7 @@ class get_police_info(Node):
         #self.signature.add_sig('feats', Node)
         self.signature.add_sig(POS, Str)
 
-    def trans_simple(self, top):
+    def transform_graph(self, top):
         pnm, parent = self.get_parent()
         if parent.typename()!='side_task':
             if PERSIST_SIDE:

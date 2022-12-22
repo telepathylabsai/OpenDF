@@ -112,7 +112,7 @@ class Debug(Node):
 
 class DummyRoot(Node):
     """
-    aux type used for trans_simple
+    aux type used for transform_graph
     """
 
     def __init__(self):

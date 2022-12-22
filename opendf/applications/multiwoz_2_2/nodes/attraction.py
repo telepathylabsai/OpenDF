@@ -344,7 +344,7 @@ class revise_attraction(revise):
     def valid_input(self):  # override the revise valid_input
         pass
 
-    def trans_simple(self, top):
+    def transform_graph(self, top):
         if 'name' in self.inputs:
             n = self.input_view('name')
             if n.typename()=='Name':
@@ -381,7 +381,7 @@ class get_attraction_info(Node):
         self.signature.add_sig('attraction', Attraction)
         self.signature.add_sig(POS, Str)
 
-    def trans_simple(self, top):
+    def transform_graph(self, top):
         pnm, parent = self.get_parent()
         if parent and parent.typename()!='side_task':
             if PERSIST_SIDE:

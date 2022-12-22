@@ -7,7 +7,7 @@ from opendf.applications.smcalflow.domain import *
 from opendf.graph.nodes.framework_functions import get_refer_match
 from opendf.graph.nodes.framework_operators import Modifier
 from opendf.graph.nodes.node import search_for_types_in_parents
-from opendf.graph.transform_graph import trans_graph
+from opendf.graph.transform_graph import do_transform_graph
 
 # the following modifiers are Event modifiers - in the future we may have modifiers for other types (e.g.  Recipient),
 # so the names may have to change to indicate this.
@@ -28,7 +28,7 @@ from opendf.graph.transform_graph import trans_graph
 # and the pruned tree is used for search.
 #
 # Due to the design of the simplified annotation, modifiers may have many different types of inputs, so they need more
-# attention converting this input to the right format - using trans_simple (other node types need this transformation
+# attention converting this input to the right format - using transform_graph (other node types need this transformation
 # as well, but don't have to deal with so many input types).
 # The transformation continues in the exec() function - finishing off transformations which require knowledge of the
 # types of results of inputs.
@@ -54,7 +54,7 @@ class at_location(Modifier):
 
     # transform input to the right format.
     # there are two use cases for this func (indicated by eval):
-    #   1. before graph evaluation (in trans_simple)
+    #   1. before graph evaluation (in transform_graph)
     #      - At the time of running, there are no results yet (for any node),
     #         i.e. self.result=self, input_view(i)==inputs[i],
     #              inp.outype may be correct, but if inp is a function, we don't know if it will return one or
@@ -85,7 +85,7 @@ class at_location(Modifier):
         self.do_trans(evl=True)
         self.set_result(self.input_view(posname(1)))
 
-    def trans_simple(self, top):
+    def transform_graph(self, top):
         self.do_trans()
         return self, None
 
@@ -118,7 +118,7 @@ class avoid_location(Modifier):
         self.do_trans(evl=True)
         self.set_result(self.input_view(posname(1)))
 
-    def trans_simple(self, top):
+    def transform_graph(self, top):
         self.do_trans()
         return self, None
 
@@ -171,7 +171,7 @@ class with_attendee(Modifier):
         self.do_trans(evl=True)
         self.set_result(self.input_view(posname(1)))
 
-    def trans_simple(self, top):
+    def transform_graph(self, top):
         self.do_trans()
         return self, None
 
@@ -218,7 +218,7 @@ class avoid_attendee(Modifier):
         self.do_trans(evl=True)
         self.set_result(self.input_view(posname(1)))
 
-    def trans_simple(self, top):
+    def transform_graph(self, top):
         self.do_trans()
         return self, None
 
@@ -269,7 +269,7 @@ class starts_at(Modifier):
         inp = self.input_view(posname(1))
         ot, it = inp.outypename(), inp.typename()
         if not evl:
-            trans_graph(inp, add_yield=False)  # need to transform input before ToEventCTree
+            do_transform_graph(inp, add_yield=False)  # need to transform input before ToEventCTree
         pref1 = 'ToEventCTree('
         if inp.is_aggregator():
             for i in list(inp.inputs.keys()):
@@ -291,7 +291,7 @@ class starts_at(Modifier):
         self.do_trans(evl=True)
         self.set_result(self.input_view(posname(1)))
 
-    def trans_simple(self, top):
+    def transform_graph(self, top):
         self.do_trans()
         return self, None
 
@@ -305,7 +305,7 @@ class avoid_start(Modifier):
         inp = self.input_view(posname(1))
         ot, it = inp.outypename(), inp.typename()
         if not evl:
-            trans_graph(inp, add_yield=False)  # need to trans input before ToEventCTree
+            do_transform_graph(inp, add_yield=False)  # need to trans input before ToEventCTree
         pref1 = 'NOT(ToEventCTree('
         if inp.is_aggregator():
             for i in list(inp.inputs.keys()):
@@ -326,7 +326,7 @@ class avoid_start(Modifier):
         self.do_trans(evl=True)
         self.set_result(self.input_view(posname(1)))
 
-    def trans_simple(self, top):
+    def transform_graph(self, top):
         self.do_trans()
         return self, None
 
@@ -439,7 +439,7 @@ class ends_at(Modifier):
         inp = self.input_view(posname(1))
         ot, it = inp.outypename(), inp.typename()
         if not evl:
-            trans_graph(inp, add_yield=False)  # need to trans input before ToEventCTree
+            do_transform_graph(inp, add_yield=False)  # need to trans input before ToEventCTree
         pref1 = f'ToEventCTree(label={self.label},'
         if inp.is_aggregator():
             for i in list(inp.inputs.keys()):
@@ -460,7 +460,7 @@ class ends_at(Modifier):
         self.do_trans(evl=True)
         self.set_result(self.input_view(posname(1)))
 
-    def trans_simple(self, top):
+    def transform_graph(self, top):
         self.do_trans()
         return self, None
 
@@ -488,7 +488,7 @@ class avoid_end(Modifier):
         inp = self.input_view(posname(1))
         ot, it = inp.outypename(), inp.typename()
         if not evl:
-            trans_graph(inp, add_yield=False)  # need to trans input before ToEventCTree
+            do_transform_graph(inp, add_yield=False)  # need to trans input before ToEventCTree
         pref1 = 'NOT(ToEventCTree(label=end,'
         if inp.is_aggregator():
             for i in list(inp.inputs.keys()):
@@ -509,7 +509,7 @@ class avoid_end(Modifier):
         self.do_trans(evl=True)
         self.set_result(self.input_view(posname(1)))
 
-    def trans_simple(self, top):
+    def transform_graph(self, top):
         self.do_trans()
         return self, None
 
@@ -575,7 +575,7 @@ class avoid_end(Modifier):
 #         self.do_trans(evl=True)
 #         self.set_result(self.input_view(posname(1)))
 #
-#     def trans_simple(self, top):
+#     def transform_graph(self, top):
 #         self.do_trans()
 #         return self, None
 
@@ -589,7 +589,7 @@ class avoid_time(Modifier):
         inp = self.input_view(posname(1))
         ot, it = inp.outypename(), inp.typename()
         if not evl:
-            trans_graph(inp, add_yield=False)  # need to trans input before ToEventCTree
+            do_transform_graph(inp, add_yield=False)  # need to trans input before ToEventCTree
         pref1 = 'NOT(ToEventCTree(label=bound,'
         if inp.is_aggregator():
             for i in list(inp.inputs.keys()):
@@ -610,7 +610,7 @@ class avoid_time(Modifier):
         self.do_trans(evl=True)
         self.set_result(self.input_view(posname(1)))
 
-    def trans_simple(self, top):
+    def transform_graph(self, top):
         self.do_trans()
         return self, None
 
@@ -644,7 +644,7 @@ class has_subject(Modifier):
         self.do_trans(evl=True)
         self.set_result(self.input_view(posname(1)))
 
-    def trans_simple(self, top):
+    def transform_graph(self, top):
         self.do_trans()
         return self, None
 
@@ -675,7 +675,7 @@ class avoid_subject(Modifier):
         self.do_trans(evl=True)
         self.set_result(self.input_view(posname(1)))
 
-    def trans_simple(self, top):
+    def transform_graph(self, top):
         self.do_trans()
         return self, None
 
@@ -698,7 +698,7 @@ class has_status(Modifier):
         self.do_trans(evl=True)
         self.set_result(self.input_view(posname(1)))
 
-    def trans_simple(self, top):
+    def transform_graph(self, top):
         self.do_trans()
         return self, None
 
@@ -728,7 +728,7 @@ class has_duration(Modifier):
         inp = self.input_view(posname(1))
         ot, it = inp.outypename(), inp.typename()
         if not evl:
-            trans_graph(inp, add_yield=False)  # need to trans input before ToEventCTree
+            do_transform_graph(inp, add_yield=False)  # need to trans input before ToEventCTree
         pref1 = 'ToEventDurConstr('
         if inp.is_aggregator():
             for i in list(inp.inputs.keys()):
@@ -744,7 +744,7 @@ class has_duration(Modifier):
         self.do_trans(evl=True)
         self.set_result(self.input_view(posname(1)))
 
-    def trans_simple(self, top):
+    def transform_graph(self, top):
         self.do_trans()
         return self, None
 
@@ -804,7 +804,7 @@ class with_recipient(Modifier):
         self.do_trans(evl=True)
         self.set_result(self.input_view(posname(1)))
 
-    def trans_simple(self, top):
+    def transform_graph(self, top):
         self.do_trans()
         return self, None
 
@@ -876,6 +876,6 @@ class participated_in(Modifier):
         self.do_trans(evl=True)
         self.set_result(self.input_view(posname(1)))
 
-    def trans_simple(self, top):
+    def transform_graph(self, top):
         self.do_trans()
         return self, None

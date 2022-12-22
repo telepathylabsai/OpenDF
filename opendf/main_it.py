@@ -16,7 +16,7 @@ from opendf.graph.dialog_context import DialogContext
 from opendf.graph.draw_graph import draw_all_graphs
 from opendf.graph.eval import evaluate_graph
 from opendf.graph.node_factory import NodeFactory
-from opendf.graph.transform_graph import trans_graph
+from opendf.graph.transform_graph import do_transform_graph
 
 logger = logging.getLogger(__name__)
 
@@ -96,7 +96,7 @@ def run_turn(expression, dialog_context):
 
     igl, ex = construct_graph(expression, dialog_context, constr_tag=OUTLINE_SIMP, no_post_check=True)
 
-    gl, ex = trans_graph(igl)  # for drawing without yield
+    gl, ex = do_transform_graph(igl)  # for drawing without yield
 
     check_constr_graph(gl)
 

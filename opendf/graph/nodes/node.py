@@ -2120,8 +2120,8 @@ class Node:
     # these functions are defined in a way to avoid circular dependencies, we hide the import inside the functions
 
     @staticmethod
-    def call_construct(sexp, d_context, register=True, top_only=False,constr_tag=RES_COLOR_TAG,
-                       no_post_check=False, do_trans_simp=False, no_exit=False, add_goal=False):
+    def call_construct(sexp, d_context, register=True, top_only=False, constr_tag=RES_COLOR_TAG,
+                       no_post_check=False, do_transform=False, no_exit=False, add_goal=False):
         """
         :return:
         :rtype: Tuple[Node, List[Exception]]
@@ -2129,9 +2129,9 @@ class Node:
         from opendf.graph.constr_graph import construct_graph
         g, ex = construct_graph(sexp, d_context, register=register, top_only=top_only, constr_tag=constr_tag,
                                 no_post_check=no_post_check, no_exit=no_exit)
-        if do_trans_simp:
-            from opendf.graph.transform_graph import trans_graph
-            g, e = trans_graph(g, add_yield=False)
+        if do_transform:
+            from opendf.graph.transform_graph import do_transform_graph
+            g, e = do_transform_graph(g, add_yield=False)
 
         if add_goal:
             d_context.add_goal(g)
@@ -2139,7 +2139,7 @@ class Node:
 
     @staticmethod
     def call_construct_eval(sexp, d_context, do_eval=True, register=True, top_only=False, add_goal=False,
-                            constr_tag=RES_COLOR_TAG, no_post_check=False, do_trans_simp=False, no_exit=False):
+                            constr_tag=RES_COLOR_TAG, no_post_check=False, do_transform=False, no_exit=False):
         """
         Constructs the node from the P-expression.
 
@@ -2153,9 +2153,9 @@ class Node:
         if ex is not None:  # re-throw exception
             re_raise_exc(ex)
 
-        if do_trans_simp:
-            from opendf.graph.transform_graph import trans_graph
-            g, ex = trans_graph(g, add_yield=False)
+        if do_transform:
+            from opendf.graph.transform_graph import do_transform_graph
+            g, ex = do_transform_graph(g, add_yield=False)
 
         e = None
         if do_eval:
@@ -2206,9 +2206,9 @@ class Node:
     # #############################################################################################
 
     # TODO: may need to change input view for self and/or inp!
-    # TODO: need do_constr_check flag? (to disable post construct checks during trans_simple)?
+    # TODO: need do_constr_check flag? (to disable post construct checks during transform_graph)?
     def wrap_input(self, inp_nm, pref, new_nm=None, suf=None, register=True, iview=None, do_eval=True,
-                   do_trans_simp=False):
+                   do_transform=False):
         """
         Auxiliary function to modify an input - wrap it in a sexp (could be a simple conversion or a complex calc...).
 
@@ -2217,7 +2217,7 @@ class Node:
 
         Note: if the wrapped input node is not registered, it will be registered.
 
-        Node: if called from trans_simple, consider adding do_eval=False
+        Node: if called from transform_graph, consider adding do_eval=False
 
         Note: this is typically called during the evaluation process - either from validate_input or from exec.
               At this stage the initial graph has already been constructed, and we're doing bottom-up eval.
@@ -2252,7 +2252,7 @@ class Node:
 
         p = d_context.num_registered()
         d, e = self.call_construct(sexp, d_context, register=register, constr_tag=WRAP_COLOR_TAG,
-                                   do_trans_simp=do_trans_simp)  #
+                                   do_transform=do_transform)  #
         if register and d_context.num_registered() > p:
             logger.debug('   - - wrap added nodes %d-%d  %s', p, d_context.num_registered() - 1, sexp)
         nm = new_nm if new_nm else inp_nm
@@ -2265,7 +2265,7 @@ class Node:
                 raise to_list(e)[0]
 
     def wrap_input_multi(self, inp_nm, new_nm, pref, suf=None, register=True, iview=None, do_eval=False,
-                         no_post_check=False, do_trans_simp=False):
+                         no_post_check=False, do_transform=False):
         """
         Wraps multiple inputs into one input. Prefix must have '%s' to indicate where to put the links to exiting nodes.
         """
@@ -2293,7 +2293,7 @@ class Node:
             self.del_input(nm)
 
         d, e = self.call_construct(sexp, d_context, register=register, constr_tag=WRAP_COLOR_TAG,
-                                   no_post_check=no_post_check, do_trans_simp=do_trans_simp)  #
+                                   no_post_check=no_post_check, do_transform=do_transform)  #
         iv = iview if iview else VIEW.EXT
         self.add_linked_input(new_nm, d, iv)
         if e:
@@ -2304,7 +2304,7 @@ class Node:
                 re_raise_exc(e)
 
     def rec_wrap_help(self, pref, typs, skip, suf, register=True, iview=None, only_incompl=False, excl_typs=None,
-                      do_trans_simp=False):
+                      do_transform=False):
         """
         Does recursive wrapping, looking at ALL the inputs of `self`. Continues going deeper into the tree as long as
         it's node types in skip; otherwise, stops.
@@ -2315,13 +2315,13 @@ class Node:
             if tn in typs or (excl_typs and tn not in excl_typs):  # wrap, but do not eval (we eval only in the end)
                 if not only_incompl or not n.is_complete():
                     self.wrap_input(i, pref, suf=suf, register=register, iview=iview, do_eval=False,
-                                    do_trans_simp=do_trans_simp)
+                                    do_transform=do_transform)
             elif tn in skip:  # keep going deeper
                 n.rec_wrap_help(pref, typs, skip, suf, register, iview,
-                                only_incompl, excl_typs=excl_typs, do_trans_simp=do_trans_simp)
+                                only_incompl, excl_typs=excl_typs, do_transform=do_transform)
 
     def recursive_wrap_input(self, inp_nm, pref, typs, skip=None, suf=None, register=True, iview=None,
-                             only_incompl=False, excl_typs=None, do_eval=True, do_trans_simp=False):
+                             only_incompl=False, excl_typs=None, do_eval=True, do_transform=False):
         """
         Recursively descends a tree, following one specific input. Wraps any occurrence of typ (as input view) in the
         given wrapper. Continues going deeper into the tree as long as it's node types in skip; otherwise, stops.
@@ -2335,18 +2335,18 @@ class Node:
         if not n:
             return
         if n.typename() in typs:
-            self.wrap_input(inp_nm, pref, None, suf, register, iview, do_trans_simp=do_trans_simp)
+            self.wrap_input(inp_nm, pref, None, suf, register, iview, do_transform=do_transform)
             return
 
         n.rec_wrap_help(pref, typs, skip, suf, register, iview, only_incompl,
-                        excl_typs=excl_typs, do_trans_simp=do_trans_simp)
+                        excl_typs=excl_typs, do_transform=do_transform)
         if do_eval:
             e = self.call_eval(add_goal=False)
             if e:
                 re_raise_exc(e)
 
-    # this is used for trans_simple
-    def wrap_otype_cast_obj(self, parent, inp_nm, pref, otyp, suf=None, register=True, iview=None, do_trans_simp=False):
+    # this is used for transform_graph
+    def wrap_otype_cast_obj(self, parent, inp_nm, pref, otyp, suf=None, register=True, iview=None, do_transform=False):
         """
         Recursive wrapping of objects in an operator tree - add a type cast marker. Wraps every `real` object which
         does NOT have an output type of `otyp`.
@@ -2360,14 +2360,14 @@ class Node:
                     n = self.inputs[i]
                     if n.typename() != 'TEE':
                         n = self.input_view(i)
-                    n.wrap_otype_cast_obj(self, i, pref, otyp, suf, register, iview, do_trans_simp=do_trans_simp)
+                    n.wrap_otype_cast_obj(self, i, pref, otyp, suf, register, iview, do_transform=do_transform)
         else:
             otn = self.outypename()
             if otn not in otyp:  # if out type mismatches, wrap it with the desired type - it will be auto fixed later
                 sup = [node_fact.node_types[i] for i in otyp if i!='Node']
                 if not issubclass(type(self), tuple(sup)):
                     parent.wrap_input(inp_nm, pref, suf=suf, register=register, iview=iview, do_eval=False,
-                                      do_trans_simp=do_trans_simp)
+                                      do_transform=do_transform)
 
     # add objects to an input -
     # the input may currently have 0, 1, or multiple objects
@@ -2492,9 +2492,9 @@ class Node:
     # default implementation -
     #   if current node expect a specific, unique input type, then wrap all input objects which are NOT
     #   of that type (going recursively on tree, skipping operators...)
-    # note - if using wrap_input inside trans_simple, consider adding the argument: do_eval=False  (wait for
-    #        trans_simple to finish recursively traversing the whole graph before evaluating)
-    def trans_simple(self, top):
+    # note - if using wrap_input inside transform_graph, consider adding the argument: do_eval=False  (wait for
+    #        transform_graph to finish recursively traversing the whole graph before evaluating)
+    def transform_graph(self, top):
         if self.is_base_type():
             return self, None
         # TODO: maybe have a positive list of types for which we auto wrap?
@@ -2557,7 +2557,7 @@ class Node:
             self.context.replace_assign(inp, self.inputs[inp].inputs[dt])
             self.replace_input(inp, self.inputs[inp].inputs[dt])
 
-    # similar to trans_simple, but typically used in the opposite direction - going from complex to simple
+    # similar to transform_graph, but typically used in the opposite direction - going from complex to simple
     # for simplify - we know that NO evaluation is run (at least for now)  (any reason/case we should?)
     #  - so free to use inputs[i] instead of input_view(i)
     def simplify(self, top, mode):

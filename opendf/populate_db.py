@@ -31,7 +31,7 @@ from opendf.graph.dialog_context import DialogContext
 from opendf.utils.arg_utils import add_environment_option
 from opendf.utils.io import load_jsonl_file
 from opendf.utils.utils import to_list
-from opendf.graph.transform_graph import trans_graph
+from opendf.graph.transform_graph import do_transform_graph
 from opendf.graph.draw_graph import draw_all_graphs
 from opendf.misc.populate_utils import init_db, get_all_db_events
 from opendf.applications.smcalflow.domain import get_stub_data_from_json
@@ -248,7 +248,7 @@ def save_added_objects(added_objects, d_context, d_id, prt=True):
 def exec_turn(pexp, d_context, user_txt, agent_txt, fout=None, cont=False):
     try:
         igl, ex = construct_graph(pexp, d_context, constr_tag=OUTLINE_SIMP, no_post_check=True, no_exit=True)
-        gl, ex = trans_graph(igl, add_yield=True)
+        gl, ex = do_transform_graph(igl, add_yield=True)
         check_constr_graph(gl)
         add_turn_entities(user_txt, agent_txt, gl, d_context)
         # implicit accept...?

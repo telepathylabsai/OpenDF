@@ -25,7 +25,7 @@ node_fact = NodeFactory.get_instance()
 NO_YIELD = ['revise', 'refer', 'AcceptSuggestion', 'RejectSuggestion', 'MODE', 'TEE', 'ModifyEventRequest']
 
 
-def trans_graph(nd, add_yield=False):
+def do_transform_graph(nd, add_yield=False):
     """
     Recursive, top down, in place transformation of a simple graph.
     """
@@ -35,11 +35,11 @@ def trans_graph(nd, add_yield=False):
         nd.connect_in_out(posname(1), y)
     else:
         y = nd
-    # e = recursive_trans_simp(nd, y, None)
+    # e = recursive_transform(nd, y, None)
     # return y, e
 
     d, e = Node.call_construct('DummyRoot(%s)' % id_sexp(y), nd.context, no_exit=True, no_post_check=True)
-    e = recursive_trans_simp(d, d, None)
+    e = recursive_transform(d, d, None)
     mm = d.inputs['pos1']
     return mm, e
 
@@ -47,13 +47,13 @@ def trans_graph(nd, add_yield=False):
 # for now - translation stops when an error occurs - maybe we should continue anyway (and report just one error)?
 # important - if the trans_simple replaces the node it is called on,
 #             it must return the new node from which to continue traversing the graph
-def recursive_trans_simp(n, top, e):
+def recursive_transform(n, top, e):
     """
     Transforms a node, and then transforms its children (top to bottom).
     """
     if not e:
-        m, e = n.trans_simple(top)
+        m, e = n.transform_graph(top)
         for i in m.inputs:
             if not e:
-                e = recursive_trans_simp(m.input_view(i), top, e)  # use input_view - then can be called dynamically
+                e = recursive_transform(m.input_view(i), top, e)  # use input_view - then can be called dynamically
     return e

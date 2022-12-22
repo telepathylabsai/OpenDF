@@ -2839,7 +2839,7 @@ class TimeAfterDateTime(Node):
 
     # replace this by just the time is USUALLY ok (as it's typically used to assert the logic that end time > start time),
     # but in general it's too aggressive.
-    # A preferable option may be to keep TimeAfterDateTime, and replace it dynamically in trans_simp -
+    # A preferable option may be to keep TimeAfterDateTime, and replace it dynamically in transform_graph -
     #   this could account for cases where just date or just time are given
     def simplify(self, top, mode):
         pnm, parent = self.get_parent()

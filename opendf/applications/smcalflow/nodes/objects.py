@@ -377,7 +377,7 @@ class Recipient(Node):
         pass
         # self.add_like(d_context)  # probably happens just for constraints?
 
-    def trans_simple(self, top):
+    def transform_graph(self, top):
         if not self.is_complete() and self.outputs:
             if posname(1) in self.inputs:
                 self.wrap_input(posname(1), 'LIKE(PersonName(', new_nm='name',
@@ -652,12 +652,12 @@ class Event(Node):
                     self.disconnect_input(i)
                     n.connect_in_out(i, slot)
 
-    def trans_simple(self, top):
+    def transform_graph(self, top):
         self.fix_slot()
         return self, None
 
     # add wrappers - singleton(refer()) around incomplete Recipients
-    # note - if trans_simple is applied, and it already added a singleton(refer()) wrapper, then fix_attendee will not
+    # note - if transform_graph is applied, and it already added a singleton(refer()) wrapper, then fix_attendee will not
     #        do any change - because the traversal of the tree (looking for Recipient nodes) will be blocked at the
     #        added singleton node above it.
     def fix_attendee(self):

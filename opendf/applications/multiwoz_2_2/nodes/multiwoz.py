@@ -821,7 +821,7 @@ class General_thank(GenericPleasantry):
         super().__init__()
 
     # for "thanks", which can come in the middle of an interaction, stay with the main task
-    def trans_simple(self, top):
+    def transform_graph(self, top):
         pnm, parent = self.get_parent()
         if parent.typename() != 'side_task':
             parent.wrap_input(pnm, 'side_task(task=', do_eval=False)

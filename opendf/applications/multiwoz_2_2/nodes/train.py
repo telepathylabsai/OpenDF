@@ -554,7 +554,7 @@ class revise_train(revise):
     def valid_input(self):  # override the revise valid_input
         pass
 
-    def trans_simple(self, top):
+    def transform_graph(self, top):
         leave, arrive, dur = self.get_input_views(['leaveat', 'arriveby', 'duration'])
         if leave and leave.typename()=='MWOZTime':
             self.wrap_input('leaveat', 'GE(')
@@ -619,7 +619,7 @@ class get_train_info(Node):
         #self.signature.add_sig('feats', Node)
         self.signature.add_sig(POS, Str)
 
-    def trans_simple(self, top):
+    def transform_graph(self, top):
         pnm, parent = self.get_parent()
         if parent.typename()!='side_task':
             if PERSIST_SIDE:

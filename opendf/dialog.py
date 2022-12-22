@@ -119,14 +119,14 @@ def create_arguments_parser():
     """
     parser = argparse.ArgumentParser(
         description="The entry point to run the system with dialogs that do not require transformation. "
-                    "It runs examples from the  `opendf/examples/examples.py` file.",
+                    "It runs examples from the  `opendf/examples/block_examples.py` file.",
         formatter_class=argparse.ArgumentDefaultsHelpFormatter
     )
 
     parser.add_argument(
         "--dialog_id", "-d", metavar="dialog_id", type=int, required=False, default=0,
         help="the dialog id to use. "
-             "This should be the index of a dialog defined in the `opendf/examples/examples.py` file"
+             "This should be the index of a dialog defined in the `opendf/examples/block_examples.py` file"
     )
 
     parser.add_argument(

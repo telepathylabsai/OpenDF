@@ -247,3 +247,9 @@ venv
 /opendf/looper.py
 /tmp/
 /resources/multiwoz/
+
+/opendf/misc/output/
+/opendf/applications/multiwoz/
+
+# VSCODE
+.vscode/

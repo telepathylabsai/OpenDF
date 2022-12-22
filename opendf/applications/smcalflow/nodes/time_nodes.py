@@ -1726,7 +1726,7 @@ class NextDOW(Node):
         d, e = self.call_construct_eval(s, self.context)
         self.set_result(d)
 
-    def trans_simple(self, top):
+    def transform_graph(self, top):
         inp = self.input_view(posname(1))
         if inp and inp.typename() == 'Str':
             self.wrap_input(posname(1), 'DayOfWeek(', do_eval=False)

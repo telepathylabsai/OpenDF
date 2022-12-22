@@ -94,7 +94,7 @@ class FindPlace(Node):
         super().__init__(Place)
         self.signature.add_sig(posname(1), [Str, LocationKeyphrase], True, alias='keyphrase')
 
-    def trans_simple(self, top):
+    def transform_graph(self, top):
         pl = self.input_view('keyphrase')
         if pl.typename() == 'Str':
             self.wrap_input('keyphrase', 'LocationKeyphrase(')
@@ -125,7 +125,7 @@ class FindPlaceMultiResults(Node):
         super().__init__(Place)
         self.signature.add_sig(posname(1), [Str, LocationKeyphrase], True, alias='keyphrase')
 
-    def trans_simple(self, top):
+    def transform_graph(self, top):
         pl = self.input_view('keyphrase')
         if pl.typename() == 'Str':
             self.wrap_input('keyphrase', 'LocationKeyphrase(')
@@ -157,7 +157,7 @@ class PlaceDescribableLocation(Node):
         super().__init__(PlaceDescribableLocation)
         self.signature.add_sig(posname(1), [Place, Str], True, alias='place')
 
-    def trans_simple(self, top):
+    def transform_graph(self, top):
         pl = self.input_view('place')
         if pl.typename() == 'Str':
             self.wrap_input('place', 'FindPlace(keyphrase=')
@@ -271,7 +271,7 @@ class WeatherQueryApi(Node):
         self.signature.add_sig('time', [DateTime, Date, DateRange, Time, TimeRange])
         self.signature.add_sig('pos1', Event, alias='event')
 
-    def trans_simple(self, top):
+    def transform_graph(self, top):
         if "event" not in self.inputs:
             pl = self.input_view('place')
             if pl.typename() == 'Str' or pl.typename() == 'LocationKeyphrase':
@@ -347,7 +347,7 @@ class WeatherAggregate(Node):
         self.signature.add_sig('quantifier', WeatherQuantifier)
         self.signature.add_sig('table', [WeatherTable, Str])
 
-    def trans_simple(self, top):
+    def transform_graph(self, top):
         table = self.input_view('table')
         if table is not None and table.typename() == 'Str':
             self.wrap_input('table', 'WeatherQueryApi(place=', do_eval=False)
@@ -759,10 +759,10 @@ class FindManager(Node):
         d, e = self.call_construct_eval(recipient_to_str_node(p), self.context, constr_tag=NODE_COLOR_DB)
         self.set_result(d)
 
-    def trans_simple(self, top):
+    def transform_graph(self, top):
         if posname(1) in self.inputs and (
                 self.inputs[posname(1)].typename() == 'Str' or self.inputs[posname(1)].outypename() == 'Str'):
-            self.wrap_input(posname(1), 'Recipient?(', do_eval=False)  # Recipient.trans_simple will expand this further
+            self.wrap_input(posname(1), 'Recipient?(', do_eval=False)  # Recipient.transform_graph will expand this further
         return self, None
 
 
@@ -868,7 +868,7 @@ class ModifyRecipientRequest(Node):
         if inp and not inp.is_constraint_tree('Recipient'):  # use is_constraint_tree here - after eval
             raise InvalidTypeException('Wrong input to ModifyRecipient - expecting a modifier tree', self)
 
-    def trans_simple(self, top):
+    def transform_graph(self, top):
         n = self
         inp = self.input_view(posname(1))
         nd, nm = inp, posname(1)
@@ -967,7 +967,7 @@ class ModifyAttendeeRequest(Node):
         if inp and not inp.is_constraint_tree('Attendee'):  # use is_constraint_tree here - after eval
             raise InvalidTypeException('Wrong input to ModifyAttendee - expecting a modifier tree', self)
 
-    def trans_simple(self, top):
+    def transform_graph(self, top):
         n = self
         inp = self.input_view(posname(1))
         nd, nm = inp, posname(1)
@@ -1178,7 +1178,7 @@ class ModifyEventRequest(Node):
         if inp and not inp.is_constraint_tree('Event'):  # use is_constraint_tree here - after eval
             raise InvalidTypeException('Wrong input to ModifyEvent - expecting a modifier tree', self)
 
-    def trans_simple(self, top):
+    def transform_graph(self, top):
         n = self
         inp = self.input_view(posname(1))
         nd, nm = inp, posname(1)
@@ -1223,13 +1223,13 @@ class SelectEventSuggestion(Node):
                     s.split(SUGG_MSG)[0] if SUGG_MSG in s else s
                 if s:
                     n = s.split('ModifyEventRequest(')[1][:-1]
-                    # the command from the suggestions did not pass through trans_simple - do it here (if dialog_simp)
+                    # the command from the suggestions did not pass through transform_graph - do it here (if dialog_simp)
                     try:
-                        g, e = self.call_construct_eval(n, d_context, do_trans_simp=True)
+                        g, e = self.call_construct_eval(n, d_context, do_transform=True)
                         if filt.match(g):
-                            # the command from the suggestions did not pass through trans_simple -
+                            # the command from the suggestions did not pass through transform_graph -
                             #   do it here (if dialog_simp)
-                            g, e = self.call_construct_eval(s, d_context, do_trans_simp=True)
+                            g, e = self.call_construct_eval(s, d_context, do_transform=True)
                             self.set_result(g)
                             if e:
                                 re_raise_exc(e)  # pass on exception
@@ -1435,7 +1435,7 @@ class CreateEvent(Node):
         super().__init__(Event)
         self.signature.add_sig(posname(1), Node)
         # TODO: further simplify - in case of multiple modifier inputs, instead of needing an explicit AND()
-        #   around them, allow multiple positional inputs, then add an AND in trans_simple
+        #   around them, allow multiple positional inputs, then add an AND in transform_graph
 
     def valid_input(self):
         inp = self.input_view(posname(1))
@@ -1444,7 +1444,7 @@ class CreateEvent(Node):
         if not inp:
             raise InvalidTypeException('What should be the name of the event?', self)
 
-    def trans_simple(self, top):
+    def transform_graph(self, top):
         n = self
         pnm, parent = self.get_parent()
         inp = self.input_view(posname(1))
@@ -1482,13 +1482,13 @@ class UpdatePreflightEventWrapper(Node):
 
         self.last_tm_sugg = get_system_datetime()
 
-    def trans_simple(self, top):
+    def transform_graph(self, top):
         inp = self.input_view('event')
         if inp.is_modifier_tree():
-            trans_graph(inp, add_yield=False)
+            do_transform_graph(inp, add_yield=False)
             self.wrap_input('event', 'singleton(FindEvents(constraint=', do_eval=False)
         elif inp.typename() == 'FindEvents':
-            trans_graph(inp, add_yield=False)
+            do_transform_graph(inp, add_yield=False)
             self.wrap_input('event', 'singleton(', do_eval=False)
         return self, None
 
@@ -1604,7 +1604,7 @@ class UpdateEvent(Node):
         self.signature.add_sig(posname(1), Event, True, alias='event')
         self.signature.add_sig(posname(2), Event, alias='constraint')
 
-    def trans_simple(self, top):
+    def transform_graph(self, top):
         n = self
         inp1, inp2 = self.input_view(posname(1)), self.input_view(posname(2))
         trans = False
@@ -1619,7 +1619,7 @@ class UpdateEvent(Node):
             elif inp1.outypename() == 'Event':
                 trans = True
                 self.wrap_input('event', 'UpdateCommitEventWrapper(sugg=UpdatePreflightEventWrapper(event=',
-                                do_eval=False, do_trans_simp=True)
+                                do_eval=False, do_transform=True)
 
             if trans and self.outputs:
                 nm, par = self.outputs[-1]
@@ -1678,7 +1678,7 @@ class DeleteEvent(Node):
     Convenience function for deleting an event.
     """
 
-    # all this one does is add wrappers to the given event modifiers. Disappears after trans_simple
+    # all this one does is add wrappers to the given event modifiers. Disappears after transform_graph
     def __init__(self):
         super().__init__(Event)
         self.signature.add_sig(posname(1), Node, True)
@@ -1688,7 +1688,7 @@ class DeleteEvent(Node):
         if not inp.is_modifier_tree('Event'):
             raise InvalidTypeException('DeleteEvent expects event modifier(s) as input', self)
 
-    def trans_simple(self, top):
+    def transform_graph(self, top):
         n = self
         inp = self.inputs[posname(1)]
         if inp:
