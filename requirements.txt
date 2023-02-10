@@ -1,6 +1,6 @@
 graphviz
 jsons
-sqlalchemy
+sqlalchemy==1.4.40
 tqdm
 ply
 pytest
