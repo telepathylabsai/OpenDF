@@ -1,9 +1,9 @@
-import random
 from opendf.applications.smcalflow.nodes.functions import *
 from opendf.graph.nodes.node import Node
 from opendf.graph.nodes.framework_functions import get_refer_match
 from opendf.applications.smcalflow.nodes.functions import (
-    Message, Int, Bool, Str)
+    Int, Bool, Str)
+from opendf.utils.utils import Message
 from opendf.exceptions.df_exception import (
     DFException, InvalidValueException)
 from opendf.exceptions.__init__ import re_raise_exc
@@ -340,7 +340,7 @@ class ShowBoard(Node):
 
 class AddBlock(Node):
     def __init__(self):
-        super().__init__(type(self))
+        super().__init__(PBlock)
         self.signature.add_sig('block', Block)
         self.signature.add_sig('x', Int)
         self.signature.add_sig('y', Int)
@@ -361,12 +361,12 @@ class AddBlock(Node):
         if board.size is None:
             raise DFException('Please init the grid first!', self)
         try:
-            new_block = board.add_block(block, x, y)
+            new_pblock = board.add_block(block, x, y)
         except Exception as ex:
             re_raise_exc(ex, self)
         # s = board.describe().text
         # self.context.add_message(Message(s, node=self))
-        self.set_result(new_block)
+        self.set_result(new_pblock)
 
 
 class MoveBlock(Node):

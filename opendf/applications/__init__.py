@@ -2,6 +2,7 @@
 Package containing logic concerning different applications on top of the dataflow graph.
 """
 import abc
+from typing import List
 
 from opendf.applications.multiwoz_2_2.domain import fill_multiwoz_db, MultiWOZContext
 from opendf.applications.multiwoz_2_2.multiwoz_db import fill_multiwoz_sql_db, MultiWozSqlDB
@@ -24,6 +25,43 @@ class EnvironmentClass(abc.ABC):
     @abc.abstractmethod
     def __exit__(self):
         pass
+
+
+class GenericEnvironmentClass(EnvironmentClass):
+
+    def __init__(self, d_context: DialogContext = None, node_paths: List[str] = ()):
+        super(GenericEnvironmentClass, self).__init__()
+        self.d_context: DialogContext = d_context
+        self.node_paths = node_paths
+
+        self.init_pexp = None
+        self.top_type = None
+        self.compare_runs = None
+
+    def load_node_factory(self):
+        # init type info
+        node_fact = NodeFactory.get_instance()
+        fill_type_info(node_fact, node_paths=self.node_paths)
+
+    def get_new_context(self) -> DialogContext:
+        return self.d_context.new_instance()
+
+    def __enter__(self):
+        self.load_node_factory()
+        return self
+
+    def __exit__(self, exc_type, exc_val, exc_tb):
+        pass
+
+    def init_gen(self, context, env_def):
+        if self.top_type is None:
+            return None, None, None
+        top = [g for g in context.goals if g.typename() == self.top_type]
+        if top:
+            top = top[-1]
+            top.add_task_ids()
+        env_def.agent_oracle = False  # for generation don't use oracle
+        return self.init_pexp, self.top_type, self.compare_runs
 
 
 class SMCalFlowEnvironment(EnvironmentClass):
@@ -105,7 +143,7 @@ class MultiWOZEnvironment_2_2(EnvironmentClass):
              "opendf.applications.multiwoz_2_2.nodes.hospital",
              ]
 
-    def get_new_context(self):
+    def get_new_context(self) -> MultiWOZContext:
         return MultiWOZContext()
 
     def __init__(self, d_context=None, data_path=None, domains=None, clean_database=False):

@@ -1,13 +1,14 @@
+import random
 import re
 from typing import Tuple, Any, Optional, List
 
 from opendf.exceptions.debug_exception import DebugDFException
 from opendf.exceptions.df_exception import ElementNotFoundException
-from opendf.graph.dialog_context import DialogContext
+import opendf.graph.dialog_context
 from opendf.graph.nlu_framework import NLU_TYPE
 from opendf.graph.node_factory import NodeFactory
 from opendf.utils.utils import compatible_clevel, parse_hint, to_list, id_sexp, \
-    is_assign_name, strings_similar, flatten_list
+    is_assign_name, strings_similar, flatten_list, Message
 from opendf.exceptions import re_raise_exc
 from opendf.graph.signature import *
 from opendf.defs import *
@@ -94,13 +95,12 @@ class Node:
         # (text, optional) explain to user why this node is needed. This explanation is independent of where the
         # node is used
 
-        self.context: Optional[DialogContext] = None
+        self.context: Optional[opendf.DialogContext] = None
         # link to the dialog context this node is part of (avoid need to pass d_context everywhere)
 
         self.counters = {'dup': 1}
         self.obj_name_singular = self.typename()
         self.obj_name_plural = self.typename() + 's'
-        self.pack_counters = None  # a list of counters to pack (when packing context)
 
     # #############################################################################################
     # ##################### some simple functions with self explanatory names #####################
@@ -110,6 +110,9 @@ class Node:
         `self` is one of the base types [Int, Str, Float, Bool], the only types which can have actual data.
         """
         return self.typename() in base_types
+
+    def is_leaf_type(self):
+        return self.typename() in node_fact.leaf_types
 
     def is_operator(self):
         return self.typename() in node_fact.operators
@@ -126,6 +129,12 @@ class Node:
 
     def is_modifier(self):
         return self.typename() in node_fact.modifiers
+
+    def is_object(self):
+        return type(self) == self.out_type and self.out_type != Node
+
+    def is_inputless(self):
+        return len(self.signature)==0
 
     # #############################################################################################
 
@@ -165,6 +174,9 @@ class Node:
     @property
     def res(self):
         return self.get_result_trans()
+
+    def is_trans_dup_of(self, nd):
+        return False if not self.dup_of else True if self.dup_of == nd else self.dup_of.is_trans_dup_of(nd)
 
     def show(self, with_id=False):
         from opendf.utils.simplify_exp import indent_sexp
@@ -245,7 +257,7 @@ class Node:
 
     def get_dats_dict(self, inp):
         inp = to_list(inp)
-        dats = {i:self.get_dat(i) for i in inp}
+        dats = {i: self.get_dat(i) for i in inp}
         return dats
 
     def get_ext_view(self, txt):
@@ -491,14 +503,12 @@ class Node:
                     self.stop_eval_on_exception = True
                 elif f[0] == '#' and context:  # <#17.3> means set this node's id to 17, and set the created turn to 3
                     s = f[1:].split('.')
-                    nm, trn = (int(s[0]), int(s[1])) if len(s)>1 else (int(s[0]), None)
+                    nm, trn = (int(s[0]), int(s[1])) if len(s) > 1 else (int(s[0]), None)
                     if register:
                         context.register_node(self, renumber=nm)
                     if trn is not None:
                         self.created_turn = trn
-                elif f.startswith('E:'):
-                    self.set_extra_attr(f[2:])
-                elif f=='*':
+                elif f == '*':
                     self.evaluated = True
                     self.result = self
 
@@ -520,43 +530,31 @@ class Node:
             feats.append('norev')
         if self.stop_eval_on_exception:
             feats.append('stpev')
-        s = self.get_extra_attr_str()
-        if s:
-            feats.append('E:'+s)
         if self.evaluated:
             feats.append('*')
-        return','.join(feats)
+        return ','.join(feats)
 
-    # get counter names from counters starting with 'max_'
-    def get_counters_from_max(self):
-        return [c[4:] for c in self.counters if c.startswith('max_')]
+    def get_internal_data(self):
+        """
+        This function should return a dictionary containing the data of internal node fields that
+        must be pickled. This is one of the many ways OpenDF serializes data, and it is described
+        in README.serialization.md.
 
-    def counters_to_str(self):
-        if not self.pack_counters:
-            return ''
-        c = [str(self.counters[i]) if i in self.counters else '0' for i in self.pack_counters]
-        return ':'.join(c)
+        :return: the dictionary containing the internal data
+        :rtype: Dict[str, Any]
+        """
+        return {"node.counters": self.counters}
 
-    def str_to_counters(self, s, cnts=None):
-        if s and (self.pack_counters or cnts):
-            vs = s.split(':')
-            cnts = cnts if cnts else self.pack_counters
-            for c, v in zip(cnts, vs):
-                self.counters[c] = int(v)
+    def set_internal_data(self, internal_data):
+        """
+        This function should set the internal data from the serialized object provided by
+        `get_internal_data`. This is one of the many ways OpenDF serializes data, and it is described
+        in README.serialization.md.
 
-    # base class - do nothing
-    def get_extra_attr_str(self):
-        if self.pack_counters:
-            return self.counters_to_str()
-        return ''
-
-    def set_extra_attr(self, attr_str):
-        if attr_str and self.pack_counters:
-            self.str_to_counters(attr_str)
-
-    # get counter names from counters starting with 'max_'
-    def get_counters_from_max(self):
-        return [c[4:] for c in self.counters if c.startswith('max_')]
+        :param internal_data: the dictionary containing the internal data
+        :type internal_data: Dict[str, Any]
+        """
+        self.counters = internal_data["node.counters"]
 
     def detach_node(self):
         """
@@ -613,10 +611,10 @@ class Node:
             else:
                 for t in to_list(tags):
                     if isinstance(t, tuple):
-                        k,v = t
+                        k, v = t
                         if k is not None:
                             self.tags[k] = v
-                        else:   # TODO - fix this - parsing of tags with no values
+                        else:  # TODO - fix this - parsing of tags with no values
                             self.tags[v] = ''
                     else:
                         self.tags[t] = ''
@@ -625,7 +623,7 @@ class Node:
         tags = []
         for t in self.tags:
             if not no_deco or (TAG_NO_NO_NO not in t and 'db_node' not in t):
-                if self.tags[t]!='':
+                if self.tags[t] != '':
                     tags.append('^%s=%s' % (t, self.tags[t]))
                 else:
                     tags.append('^%s' % t)
@@ -666,8 +664,9 @@ class Node:
                             'ConstructError - Unexpected param - %s - to  %s' % (nm, self.typename()))
                     if nm in self.signature and not self.signature[nm].match_types([inp.out_type, Node]):
                         if inp.out_type != Node:  # don't complain about dynamic type - check!
-                            raise SemanticException('ConstructError - Unexpected param type - %s/%s' %
-                                                    (nm, self.signature[nm].type_name()))
+                            raise SemanticException(
+                                'ConstructError - Unexpected param type - %s/%s in %s' %
+                                (nm, self.signature[nm].type_name(), self.typename()))
 
     def is_strict_pos(self, nm):
         return is_pos(nm) and not self.signature.has_alias(nm)
@@ -776,7 +775,6 @@ class Node:
 
     def func_GE(self, ref):
         return not self.func_LT(ref)
-
 
     # TODO - do we need to add a max_val and min_val functions - in order to allow comparison of time and event
     # specifically - min_val of the OBJ. e.g. min_val(event) = slot.start  (or maybe call time_slot's min_val?)
@@ -895,7 +893,7 @@ class Node:
             if obj.is_operator():
                 os = obj.get_op_objects()
                 for o in os:
-                    if o.typename()!='Node' and o.typename()!=self.typename():
+                    if o.typename() != 'Node' and o.typename() != self.typename():
                         return False
                     if check_level and not compatible_clevel(self.constraint_level, o.constraint_level):
                         return False
@@ -931,8 +929,8 @@ class Node:
                 return False  # no match, or multiple objects in set
 
         for nm in self.inputs:
-            if self.typename()=='Node':
-                if nm=='_inp':
+            if self.typename() == 'Node':
+                if nm == '_inp':
                     for onm in obj.inputs:
                         if onm not in self.inputs:  # (as long as not explicitly given for self)
                             if self.input_view(nm).match(obj.input_view(onm), iview=self.view_mode[nm],
@@ -941,7 +939,8 @@ class Node:
                     return False
                 else:
                     if nm not in obj.inputs or not \
-                            self.input_view(nm).match(obj.input_view(nm), iview=self.view_mode[nm],match_miss=match_miss):
+                            self.input_view(nm).match(obj.input_view(nm), iview=self.view_mode[nm],
+                                                      match_miss=match_miss):
                         return False
             elif nm in self.signature:
                 if self.signature[nm].prop:
@@ -973,6 +972,12 @@ class Node:
                     return False
 
         return True
+
+    def compare_graphs(self, other, sort_inps=True):
+        return self.print_tree(None, ind=None, with_id=False, with_pos=False,
+                               trim_leaf=True, trim_sugar=True, mark_val=False, sort_inps=True)[0] == \
+            other.print_tree(None, ind=None, with_id=False, with_pos=False,
+                             trim_leaf=True, trim_sugar=True, mark_val=False, sort_inps=sort_inps)[0]
 
     # compare two graphs - used for comparing two unevaluated expressions
     # customize this part
@@ -1374,12 +1379,13 @@ class Node:
         return node_names
 
     @staticmethod
-    def duplicate_tree(node, set_dup=False, force_tags=False):
+    def duplicate_tree(node, set_dup=False, force_tags=False, n_context=None, do_on_dup=True, summarize=None):
         """
         Makes a new copy of the WHOLE subgraph.
         """
         d_context = node.context
-        old_subgraph = node.collect_nodes([node])
+        n_context = n_context if n_context else d_context
+        old_subgraph = node.collect_nodes([node], summarize=summarize)
         new_subgraph = []
         for n in old_subgraph:
             nw = type(n)()
@@ -1387,11 +1393,11 @@ class Node:
             if set_dup:
                 nw.just_dup = True
                 nw.dup_of = n
-            d_context.register_node(nw)
+            n_context.register_node(nw)
             new_subgraph.append(nw)
             if n in d_context.exception_nodes:
                 # if orig node had an exception - mark the new as a copy of an exception one
-                d_context.copied_exceptions.append(nw)
+                n_context.copied_exceptions.append(nw)
         old_idx = {o: i for i, o in enumerate(old_subgraph)}
 
         # fill/update inputs & outputs for new and old
@@ -1406,10 +1412,11 @@ class Node:
                 else:  # never true keep old input (already copied), and add output link from old node to new node
                     o_in.add_output(nm, n)
 
-        for n in new_subgraph:
-            if n.just_dup:
-                n.on_duplicate(dup_tree=True)
-                n.just_dup = False
+        if do_on_dup:
+            for n in new_subgraph:
+                if n.just_dup:
+                    n.on_duplicate(dup_tree=True)
+                    n.just_dup = False
 
         return new_subgraph
 
@@ -1491,6 +1498,8 @@ class Node:
     #   NOTE: by default, outputs are not copied (unless add_outputs) - they will be filled in the duplication process
     def copy_info(self, other, add_outputs=False, force_tags=False):
         self.inputs = other.inputs.duplicate()
+        if self.typename() == 'BookRestaurant':
+            x = 1
         if add_outputs:
             for i in self.inputs:
                 if (i, self) not in self.inputs[i].outputs:
@@ -1543,6 +1552,10 @@ class Node:
             sg.append('revise(oldNodeId=%d, hasParam=index, new=%d, newMode=extend)' % (sid, i + 1))
         return dflt + sg
 
+    @staticmethod
+    def heuristic_resolve_singleton(matches, nd):
+        return matches
+
     # execute filtering - for a node with (optionally) 'filter'
     # add (optional)- add extra candidates
     def do_filter(self, res, add=None, filter='filter', match_miss=False):
@@ -1575,11 +1588,14 @@ class Node:
         return self
 
     def print_tree(self, parent, ind=None, seen=None, with_id=True, with_pos=True, trim_leaf=True,
-                   trim_sugar=True, mark_val=True, assg=True, with_res=False):
+                   trim_sugar=True, mark_val=True, assg=True, with_res=False, sort_inps=False):
         seen = seen if seen else []
         if self.id in seen:
             return id_sexp(self), seen
         seen.append(self.id)
+        inputs = list(self.inputs.keys())
+        if sort_inps:
+            inputs = sorted(inputs)
         s = '%d:' % self.id if with_id and self.id is not None else ''
         ii = ind + 4 if ind else None
         t1 = ' ' * ind if ind else ''
@@ -1588,7 +1604,7 @@ class Node:
             inps = []
         elif trim_sugar and self.typename() == 'getattr':
             ss, seen = self.inputs['pos2'].print_tree(self, ii, seen, with_id, with_pos, trim_leaf,
-                                                      trim_sugar, mark_val, assg, with_res)
+                                                      trim_sugar, mark_val, assg, with_res, sort_inps)
             return ':%s(%s)' % (self.get_dat('pos1'), ss), seen
         else:
             tn = self.typename()
@@ -1596,13 +1612,13 @@ class Node:
                 tn = '$' + tn
             s += tn + '?' * self.constraint_level
             inps = []
-            for i in self.inputs:
+            for i in inputs:
                 ss, seen = self.inputs[i].print_tree(self, ii, seen, with_id, with_pos, trim_leaf,
-                                                     trim_sugar, mark_val, assg, with_res)
+                                                     trim_sugar, mark_val, assg, with_res, sort_inps)
                 inps.append('%s%s%s' % (t2, show_prm_nm(i, with_pos, self.signature), ss))
             if with_res and self.result != self:
                 ss, seen = self.result.print_tree(self, ii, seen, with_id, with_pos, trim_leaf,
-                                                  trim_sugar, mark_val, assg, with_res)
+                                                  trim_sugar, mark_val, assg, with_res, sort_inps)
                 inps.append('%sresult=%s' % (t2, ss))
         if inps:
             b = '(\n' if ind else '('
@@ -1645,9 +1661,9 @@ class Node:
         nn = len(self.inputs)
         inp_nms = list(self.inputs.keys())
         for i in range(nn):
-            for j in range(i+1, nn):
-                if is_pos(inp_nms[i]) and is_pos(inp_nms[j]) and posname_idx(inp_nms[i])>posname_idx(inp_nms[j]):
-                    show_pos=True
+            for j in range(i + 1, nn):
+                if is_pos(inp_nms[i]) and is_pos(inp_nms[j]) and posname_idx(inp_nms[i]) > posname_idx(inp_nms[j]):
+                    show_pos = True
         for i in self.inputs:
             ss, seen = self.inputs[i].compr_tree(seen)
             inps.append('%s%s' % (show_prm_nm(i, show_pos, self.signature), ss))
@@ -1663,6 +1679,7 @@ class Node:
         return s, seen
 
     # describe - returns text (possibly empty), and list of objects/values (possibly empty)
+    #    (describe typically assumes evaluation has been run already)
     def describe(self, params=None):
         """
         Describes node in text. Override per type.
@@ -1883,7 +1900,7 @@ class Node:
         if exclude_neg and self.typename() in ['NOT', 'NEQ', 'NONE', 'negate']:
             return objs
         for i in self.inputs:
-            n = self.inputs[i] if view==VIEW.INT else self.inputs[i].res if view==VIEW.EXT else self.input_view(i)
+            n = self.inputs[i] if view == VIEW.INT else self.inputs[i].res if view == VIEW.EXT else self.input_view(i)
             objs = n.get_op_objects(objs, exclude_neg, typs, view)
         return objs
 
@@ -2364,7 +2381,7 @@ class Node:
         else:
             otn = self.outypename()
             if otn not in otyp:  # if out type mismatches, wrap it with the desired type - it will be auto fixed later
-                sup = [node_fact.node_types[i] for i in otyp if i!='Node']
+                sup = [node_fact.node_types[i] for i in otyp if i != 'Node']
                 if not issubclass(type(self), tuple(sup)):
                     parent.wrap_input(inp_nm, pref, suf=suf, register=register, iview=iview, do_eval=False,
                                       do_transform=do_transform)
@@ -2378,18 +2395,18 @@ class Node:
         objs = to_list(objs)
         if nm not in self.inputs:
             oo = objs[0]
-            if len(objs)>1:
+            if len(objs) > 1:
                 s = 'SET(' + ','.join([id_sexp(o) for o in objs]) + ')'
                 oo = self.call_construct(s, self.context)
             oo.connect_in_out(nm, self)
         else:
             n = self.inputs[nm]  # NOT view - we don't want to modify the result!
-            if n.typename()==agg:  # already has multi objects
+            if n.typename() == agg:  # already has multi objects
                 for o in objs:
                     n.add_pos_input(o)
             else:  # single object
                 self.disconnect_input(nm)
-                s = 'SET(' + ','.join([id_sexp(o) for o in [n]+objs]) + ')'
+                s = 'SET(' + ','.join([id_sexp(o) for o in [n] + objs]) + ')'
                 oo, _ = self.call_construct(s, self.context)
                 oo.connect_in_out(nm, self)
 
@@ -2422,7 +2439,7 @@ class Node:
     #    is this too specific? (i.e. logic just for getattr)
     def getattr_yield_msg(self, attr, val=None, plural=None, params=None):
         if val:
-            return Message(attr + ' : '  + val)
+            return Message(attr + ' : ' + val)
         return Message(attr)
 
     # ############################################################################################
@@ -2861,8 +2878,271 @@ class Node:
         nds = self.topological_order()
         es = [n for n in nds if n in ex_nds]
         if es:
-            return [e for e in excs if e.node==es[-1]]
+            return [e for e in excs if e.node == es[-1]]
         return []
+
+    # base function - generate user request (both pexp and text)
+    #  - for a given node in the current graph, and the corresponding node in the target graph
+    # by default, select one of the inputs in the target node and use it for the current node's input
+    # we pass the context (for the current graph), since it's possible that we're trying to use a node from the
+    #   target graph to generate a request for a node in the current graph which does not exist yet
+    # returns:
+    #    pexp - the pexp to execute the request
+    #    text - the NL request
+    #    post - if there is any work to do after the execution of the pexp - free format (typically None)
+    #    finished - end of dialog
+    def gen_user(self, target, context, node_map, persona, tried=None):
+        opts = []
+        for i in target.inputs:
+            opts.append(i)
+        if not opts:
+            return None, None, None, None
+        i = random.choice(opts)
+        v = target.inputs[i]  # input_view(i)
+        return v.print_tree(None, ind=None, with_id=False, with_pos=False, trim_leaf=True,
+                            trim_sugar=True, mark_val=True)[0], self.gen_user_text(target, i), None, False
+
+    # base function - generate text of user request for input inp given target node
+    def gen_user_text(self, target, inp):
+        # should always be customized!
+        v = target.input_view(inp)
+        if v:
+            return 'I want %s to be %s' % (inp, v.describe().text)
+        return 'grrr...'
+
+    # base function - for user generator - recursively find matching nodes
+    # the match is typically based on graph STRUCTURE (input names), meaning we don't care about actual values
+    # but in some cases (e.g. multiple multiwoz tasks), we do need to match subgraphs according to VALUE
+    def match_gen_nodes(self, targ, node_map, by_val=False):
+        node_map[self] = targ
+        for i in self.inputs:
+            if i in targ.inputs:
+                node_map = self.inputs[i].match_gen_nodes(targ.inputs[i], node_map, by_val=by_val)
+        return node_map
+
+    # anything needed to be done after the generator turn finished
+    def post_gen(self, post):
+        pass
+
+    def gen_field_opts(self, node_name, prms=None):
+        return []
+
+    # for generator - if target top node given but no current top node, then create a new curr graph
+    #   only few nodes will actually implement this
+    def gen_curr_top(self, curr_ctx):
+        # pexp = self.typename() + '()'
+        # d, _ = self.call_construct(pexp, curr_ctx, add_goal=True)
+        # return d
+        return None
+
+    def get_gen_type(self, nm):
+        if self.out_type:
+            return to_list(self.out_type)
+        return None
+
+    # replace an input (with name nm) with a composed computation
+    #  - a more complex computation which should return the same value
+    # tp indicates the output type we want to generate (may be a list)
+    # if succeeds - does in-place replacement on graph, and returns True
+    # else - graph unchanged, returns False
+    def replace_inp_with_composition(self, nm, curr_nm=None, tp=None, last_step=False):
+        if not nm or nm not in self.inputs:
+            return False, [], []
+        if not tp:
+            tp = self.get_gen_type(nm)
+        if not tp:
+            return False, [], []
+        tp = to_list(tp)
+        old = self.input_view(nm)
+        # tp2 = [t for t in to_list(old.out_type) if t in tp]
+        # if tp2:
+        #     tp = tp2
+        i = 0
+        while i<10:
+            i += 1
+            t = random.choice(tp)
+            nw, ignore, incomplete = t.make_composition(old, self, nm, last_step=last_step)
+            if nw:
+                self.replace_input(nm, nw)
+                return True, ignore, incomplete
+        return False, [], []
+
+    # for an object type - make a composed computation returning an object of this type
+    # old_inp is the original input which we try to replace. This input may be of a different type
+    #    (e.g. Str input, which transformation would have changed to Recipient)
+    # returns the new node (top of the new computation), and a (possibly empty) list of nodes to ignore in
+    #   subsequent replacements - often there is no point in making a new computation and then
+    #   replacing it with something else (depends on semantics)
+    #def make_composition(cls, val, val_parent=None, inp_nm=None, prms=None):
+    #    return None
+    @classmethod
+    def make_composition(cls, val, val_parent=None, inp_nm=None, prms=None, last_step=False):
+        ignore, incomplete = [], []
+        nd = None
+        outf, has_prm = cls.get_gen_comp_func_prm(val, val_parent, inp_nm)
+        if outf and has_prm:
+            if random.random() < 0.5:
+                outf = []
+            else:
+                has_prm = []
+        if outf: # there is a function to generate a cls (Recipient) from old_inp (Str)
+            f = random.choice(outf)
+            nd, ignore, incomplete = f.do_gen_comp_func(cls, val, val_parent, inp_nm)
+        if has_prm:
+            obj, curr_inpnm = random.choice(has_prm)
+            nd, ignore, incomplete = obj.do_gen_comp_prm(cls, curr_inpnm, val, val_parent, inp_nm, last_step)
+            x=1
+        return nd, ignore, incomplete
+
+
+    # for a given node type and input name, are two input types comparable (i.e. "mean the same thing")?
+    # e.g. for pos1 of with_attendee, Str and Recipient can be comparable.
+    @classmethod
+    def gen_type_comparable(cls, inp_nm, out_type, org_type):
+        return out_type==org_type
+
+    # can this (function) node generate a compositional expression of type otyp, which can be used
+    #   as (possibly an equivalent) replacement for the current input (val) to input inp_nm of val_parent
+    #      can cls make otyp to replace val
+    # e.g. can FindManager (cls) generate a Recipient (otyp), which will replace a given Str (val) input to
+    #      pos1 (inp_nm) of with_attendee (val_parent)
+    #   this needs to know the semantics of the specific input to with_attendee
+    # Note the 5 way dependency cls, otyp, val, val_parent, inp_nm! (this is the cost of simplification!)
+    # Note - the value and parent may be instantiated nodes, but the current node (cls) is just a sample node -
+    #        not a "real" instance, and does not have any data in it
+    # Note - this is necessary since signature match alone is not enough - semantics is also needed
+    # base function - just say no!
+    # nodes which allow this, need to override and add the logic for custom generation
+    # NOTE - this implicitly assumes a one-step conversion from type A to B. (not A->C->B) ?
+    @classmethod
+    def can_gen_comp_func(cls, otyp=None, val=None, val_parent=None, inp_nm=None):
+        s = 'check func %s can gen %s to replace % as %s of %s' % \
+            (cls.__name__, otyp.__name__, val.typename(), inp_nm, val_parent.typename())
+        return False
+
+    # actually make the compositional generation,
+    # create a node of type otyp, which should replace 'val' (which is the inp_nm input to val_parent)
+    # for now - assume context has a flag controlling the generation: should we
+    #   - create equivalent input or just care about the types
+    #   - look for matching values in a DB
+    #   - insert new objects into DB
+    # last_step - indicates this is the last step of replacement - we should not do any replacement which
+    #    adds incomplete nodes (i.e. nodes which need to be further replaced)
+    #      note - this is not a full solution - in case an incomplete node can not be resolved in one step
+    #             (and we already made the in-place replacement for it...) todo
+    # returns:
+    #  - the generated top node,
+    #  - a list of nodes that should not be replaced (in case another replacement step is run after this one)
+    #  - a list of nodes which are incomplete after this step, and SHOULD be replaced
+    @classmethod
+    def do_gen_comp_func(cls, otyp=None, val=None, val_parent=None, inp_nm=None, last_step=False):
+        s = 'repl: %s gens %s to replace %s as %s of %s [last=%s]' % \
+            (cls.__name__, otyp.__name__, val.typename(), inp_nm, val_parent.typename(), last_step)
+        return False, [], []
+
+    # can we use the input curr_inpnm of this (current) node to make a node of type otyp to be used for replacing
+    #     value val which is input field par_inpnm to val_parent?
+    # e.g. can the input 'attendees' of Event make a Recipient to replace the input 'John' which is pos1 of with_attendee?
+    # note - here too, val and parent may be real instantiated nodes, but curr node (cls) does not really exist yet.
+    # do we really need otyp here? -
+    #   since we already use this only on entries from node_factory.has_type_prm -
+    #   aren't we already guaranteed that the parameter is (or could be) of type otyp?
+    @classmethod
+    def can_gen_comp_prm(cls, otyp, curr_inpnm=None, val=None, val_parent=None, par_inpnm=None):
+        s = 'check prm: can %s of current %s gen %s to replace %s as %s of %s?' %\
+           (curr_inpnm, cls.__name__, otyp.__name__, val.typename(), par_inpnm, val_parent.typename())
+        return False
+
+    # actually make the replacement:
+    # make a node of type otyp from the cls.inputs[curr_inpnm], to replace 'val',
+    #   which is input field par_inpnm to val_parent?
+    @classmethod
+    def do_gen_comp_prm(cls, otyp, curr_inpnm=None, val=None, val_parent=None, par_inpnm=None, last_step=False):
+        s = 'check prm: can %s of current %s gen %s to replace %s as %s of %s?' %\
+           (curr_inpnm, cls.__name__, otyp.__name__, val.typename(), par_inpnm, val_parent.typename())
+        return None, [], []
+
+    @classmethod
+    def get_gen_comp_func_prm(cls, val=None, val_parent=None, inp_nm=None):
+        cls_nm = cls.__name__
+        fcands = node_fact.gen_out[cls]
+        pcands = node_fact.has_type_prm[cls]
+        outf = [n for n in fcands if
+                node_fact.sample_nodes[n.__name__].can_gen_comp_func(cls, val, val_parent, inp_nm)]
+        if True:  # for debugging only
+            ll = node_fact.has_type_prm[cls]
+            n = list(ll)[0]
+            x=node_fact.sample_nodes[n[0].__name__]
+            y=x.can_gen_comp_prm(cls, n[1], val, val_parent, inp_nm)
+
+        hprm = [n for n in pcands if
+                node_fact.sample_nodes[n[0].__name__].can_gen_comp_prm(cls, n[1], val, val_parent, inp_nm)]
+        if cls.__name__ in ['DateRange']:
+            x=1
+        return outf, hprm
+
+    # randomly select some OBJECTS to be replaced for generation
+    # if an object is replaced, its descendant and ancestor objects should not be replaced.
+    # ignore - nodes which should not be selected (replaced)
+    # incomplete - nodes which SHOULD be replaced
+    # TODO - we want also to replace SOME function nodes, but with limits (either node type or depth)
+    #        e.g. FOr CreateEvent(starts_at(NumberPM(8))) - if we allow only to replace objects, then we're stuck with
+    #        NumberPM(). On the other hand, we don't want to replace any function node - e.g. the top CreateEvent
+    def gen_sel_rand_objects(self, ignore=None, incomplete=None, N=None):
+        ignore = ignore if ignore else []
+        incomplete = incomplete if incomplete else []
+        nodes = self.topological_order()
+        objs = [n for n in nodes if (n.is_object() or n.is_inputless()) and n not in ignore]
+        if not objs:
+            return []
+        N = N if N else random.randint(1, len(objs))
+        sel = [n for n in objs if n in incomplete]
+        while len(sel) < N and objs:
+            s = random.choice(objs)
+            st = s.topological_order()
+            sel.append(s)
+            objs = [o for o in objs if o != s and o not in st and
+                    s not in o.topological_order()]
+        return sel
+
+    @staticmethod
+    def gen_get_rand_example(ctx, like=None, dislike=None):
+        return None
+
+    # NL rendering of generated turn. returns text (only, no objects)
+    # unlike describe() - evaluation has (typically) not run yet  (if it has, we may use the result - to be seen)
+    def gen_to_NL(self, params=None):
+        if self.result != self:
+            return self.result.gen_to_NL(params)
+        # dt = self.dat
+        # if dt:
+        #     return str(dt)
+        return self.describe(params).text
+
+    @classmethod
+    def gen_attr_to_NL(cls, atr, nd, params=None):
+        if nd.result != nd:
+            nd = nd.res
+        t = ''
+        if nd:
+            s = nd.gen_to_NL()
+            t = 'the ' + atr + ' of ' + s
+        # depending on params - add some preposition / article...
+        return t
+
+    # approximate type inference - without execution. Base implementation
+    def infer_type(self, params=None):
+        if self.outypename() == 'Node' and self.copy_in_type and self.copy_in_type in self.inputs:
+            return self.input_view(self.copy_in_type).infer_type(params)
+        return self.out_type
+
+    def gen_get_all_tree_base_vals(self):
+        n = self
+        while n.outputs:
+            n = n.outputs[0][1]
+        vals = list(set([i.data for i in n.topological_order() if i.data]))
+        return vals
+
 
 def create_node_from_dict(node_name, **kwargs):
     """
@@ -2922,7 +3202,7 @@ def get_diff_fields(objs, ignore_fields=None):
     ignore_fields = ignore_fields if ignore_fields else []
     for f in fields:
         if f not in ignore_fields:
-            if len(fields[f])>1:
+            if len(fields[f]) > 1:
                 dfields[f] = fields[f]
     return dfields
 

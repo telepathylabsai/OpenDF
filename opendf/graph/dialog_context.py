@@ -6,24 +6,35 @@ Singleton class to hold goals and exceptions, and to assign unique node ids.
 from opendf.defs import *
 from opendf.exceptions.df_exception import DFException
 from opendf.exceptions import parse_node_exception
+import opendf.graph.nodes.node as node
 from copy import copy
 
 # Intentionally does not formally depend on Node
 from opendf.exceptions.python_exception import SemanticException
-
+from opendf.utils.utils import Message
 
 logger = logging.getLogger(__name__)
+
 
 class DialogContext:
     """
     Holds the context relevant to a single conversation - graph, exceptions, messages, ...
     """
 
+    @staticmethod
+    def new_instance():
+        """
+        Creates a new instance of the DialogContex
+        :return:
+        :rtype:
+        """
+        return DialogContext()
+
     def __init__(self):
         self.idx_to_node = {}  # { node_id : node }
         self.goals = []
         self.other_goals = []  # goals which are excluded from the normal search of refer/revise
-                               # todo - we may want to have several sets of "other goals" (e.g a dict of lists...?)
+        # todo - we may want to have several sets of "other goals" (e.g a dict of lists...?)
         self.exceptions = []
         self.messages = []
         # TODO: keep track of exceptions' age (which could help is selecting e.g. an oldLoc node candidate in revise)
@@ -46,10 +57,18 @@ class DialogContext:
         self.prev_nodes = None  # used for simplify - NOT automatically cleared
         self.res = None  # temp field used for packing/unpacking
         self.res_pnt = None  # temp field used for packing/unpacking
-        self.restore_points = []  # restore previous state
+        self.restore_points = []  # restore previous state  # not used yet
+        self.no_trans = False  # flag to turn off transformation (experimental use in generation)
+        self.no_eval = False  # flag to turn off transformation (experimental use in generation)
 
         self.init_stub_file = "opendf/applications/smcalflow/data_stub.json"
         # self.link_res = []
+        self.mem = {}  # general shared memory added despite VG's better judgement. This subverts the DF paradigm,
+        # and adds complexity (allowing to do the same thing in yet another way) but may be convenient
+        # not used yet - looking for use cases
+
+        self.internal_data = {}  # new mechanism to hold nodes' internal data during packing and unpacking
+        self.gen_curr_top = None  # hack - should be passed as function param (gen_user)
 
     def clear(self):
         self.idx_to_node = {}
@@ -66,13 +85,15 @@ class DialogContext:
         self.prev_sugg_act = None
         self.register_offset = 0
         self.restore_points = []
-
+        self.mem = {}
+        self.no_trans = False
+        self.no_eval = False
 
     # register a node - give it an id and add it to dict of nodes.
     # if renumber is given, force the given id. if that id already exists (should not happen!) - warn and get a new id
     # note - renumber is LOCAL only - it will not change any references to the old id
     def register_node(self, node, renumber=None):
-        if node.id is None or (renumber is not None and renumber!=node.id):
+        if node.id is None or (renumber is not None and renumber != node.id):
             if renumber is not None:
                 if renumber in self.idx_to_node:
                     print('WARN - renumber id already exists! - ignoring (%s)' % renumber)
@@ -107,11 +128,11 @@ class DialogContext:
             self.goals = [i for i in self.goals if i != g]
             self.goals.append(g)
         if g.typename() in unique_goal_types:
-            self.goals = [i for i in self.goals if i!=g and i.typename()!=g.typename()] + [g]
+            self.goals = [i for i in self.goals if i != g and i.typename() != g.typename()] + [g]
 
     def switch_goal_order(self, i1, i2):
         n = len(self.goals)
-        if i1!=i2 and -n < i1 < n and -n < i2 < n:
+        if i1 != i2 and -n < i1 < n and -n < i2 < n:
             self.goals[i1], self.goals[i2] = self.goals[i2], self.goals[i1]
 
     def remove_goal(self, g):
@@ -135,8 +156,18 @@ class DialogContext:
     def clear_exceptions(self):
         self.exceptions = []
 
-    def get_node_exceptions(self, nd):
-        return [e for e in self.exceptions if e.node==nd]
+    def get_node_exceptions(self, nd, turn=None):
+        es = [e for e in self.exceptions if e.node == nd]
+        if turn is not None:
+            if turn == -1:
+                turn = self.turn_num - 1
+            es = [e for e in es if e.turn == turn]
+        return es
+
+    def get_exceptions_under_node(self, nd, turn=None):
+        nodes = nd.topological_order()
+        es = sum([self.get_node_exceptions(e, turn) for e in nodes[:-1]], [])
+        return es
 
     def set_prev_agent_turn(self, ex):
         if not self.continued_turn:
@@ -151,6 +182,16 @@ class DialogContext:
                 m, n, h, sg = parse_node_exception(ex)  # CHECK
                 self.prev_agent_hints = h
                 self.prev_sugg_act = sg
+
+    # get exceptions from a specified turn, possibly attached to specified node types
+    def get_prev_exceptions(self, ndtyps=None, turn=None):
+        es = []
+        trn = self.turn_num - 1 if turn is None else self.turn_num + turn if turn <= 0 else turn
+        for e in self.exceptions:
+            if not ndtyps or (e.node and e.node.typename() in ndtyps):
+                if e.turn is not None and e.turn == trn:
+                    es.append(e)
+        return es
 
     def add_assign(self, nm, n):
         if nm[-1] == '~':  # a '~' at the end of the assign name means the assignment is to the RESULT of the node
@@ -251,7 +292,7 @@ class DialogContext:
     def move_messages(self, src, dst):
         msgs = []
         for m in self.messages:
-            m.node = dst if m.node==src else m.node
+            m.node = dst if m.node == src else m.node
             msgs.append(m)
         self.messages = msgs
 
@@ -290,7 +331,8 @@ class DialogContext:
     #   - add counters  (as tags?, special_feat syntax?)
     #   - possibly add base function which takes a string and fills note attr's
     #     - and inverse func which dumps attrs to a string (and then added to the node string in compr_tree)
-    def pack_context(self, pack):
+    def pack_context(self):
+        pack = self.get_empty_context()
         goals = []
         goal_types = [i.typename() for i in self.goals]
         for i, g in enumerate(goal_types):
@@ -344,7 +386,8 @@ class DialogContext:
 
         for e in self.exceptions:
             if e.node in nodes:
-                # ee = type(e)(e.message, e.node.id, hints=e.hints, suggestions=e.suggestions, orig=e.orig, chain=e.chain)
+                # ee = type(e)(e.message, e.node.id, hints=e.hints, suggestions=e.suggestions, orig=e.orig,
+                # chain=e.chain)
                 # ee = e.dup()
                 ee = copy(e)
                 ee.node = e.node.id
@@ -363,28 +406,37 @@ class DialogContext:
         pack.turn_num = self.turn_num
         # pack.messages = [(nd.id, msg) for nd, msg in self.messages]
         pack.messages = [Message(m.text, m.node.id, m.objects, m.turn) for m in self.messages]
+        pack.mem = dict(self.mem)
+
+        pack.internal_data.clear()
+        for i, node in self.idx_to_node.items():
+            pack.internal_data[i] = node.get_internal_data()
 
         return pack
 
-    def unpack_context(self, node, unpack):
+    def get_empty_context(self):
+        return DialogContext()
+
+    def unpack_context(self):
         # we pass a node because we cannot import Node here due to
         # cycles in references
+        unpack = self.get_empty_context()
 
         unpack.prev_agent_hints = self.prev_agent_hints
         unpack.prev_sugg_act = self.prev_sugg_act
         unpack.turn_num = self.turn_num
 
         for s in self.goals:
-            g, _ = node.call_construct(s, unpack, constr_tag=None)
+            g, _ = node.Node.call_construct(s, unpack, constr_tag=None)
             unpack.goals.append(g)
 
         for s in self.other_goals:
-            g, _ = node.call_construct(s, unpack, constr_tag=None)
+            g, _ = node.Node.call_construct(s, unpack, constr_tag=None)
             unpack.other_goals.append(g)
 
         if self.res:
             for s in self.res:
-                g, _ = node.call_construct(s, unpack, constr_tag=None)
+                g, _ = node.Node.call_construct(s, unpack, constr_tag=None)
 
         for n in self.res_pnt:
             r = unpack.idx_to_node[self.res_pnt[n]]
@@ -410,19 +462,44 @@ class DialogContext:
         unpack.messages = \
             [Message(m.text, unpack.idx_to_node[m.node], m.objects, m.turn) for m in self.messages
              if m.node in unpack.idx_to_node]
+        unpack.mem = dict(self.mem)
+
+        for i, value in self.internal_data.items():
+            n = unpack.idx_to_node.get(i)
+            # TODO: somehow the set of unpacked node might not be equal to the set of packed node.
+            #  Is this a bug?
+            if n is not None:
+                n.set_internal_data(value)
+        unpack.internal_data.clear()
 
         return unpack
 
     # make a copy of this context, through packing and unpacking (some info is not preserved!)
     def make_copy_with_pack(self):
         nd = self.get_node(0)  # needs a dummy node as input, to access Node functions
-        return self.pack_context(DialogContext()).unpack_context(nd, DialogContext())
+        return self.pack_context().unpack_context()
 
     def get_exec_status(self):
         if not self.goals:
             return None, None, None
         gl = self.goals[-1]
         i_turn = gl.created_turn
-        msg = [i for i in self.messages if i.node.created_turn==i_turn]  # todo - change condition to use message.turn
-        exc = [i for i in self.exceptions if i.node.created_turn==i_turn]  # todo - change condition to use exception.turn
+        msg = [i for i in self.messages if i.node.created_turn == i_turn]  # todo - change condition to use message.turn
+        exc = [i for i in self.exceptions if
+               i.node.created_turn == i_turn]  # todo - change condition to use exception.turn
         return i_turn, exc, msg
+
+    def get_last_goal_of_type(self, typ):
+        gs = [g for g in self.goals if g.typename() == typ]
+        return gs[-1] if gs else None
+
+    def has_mem(self, nm):
+        return nm in self.mem
+
+    def get_mem(self, nm):
+        if nm in self.mem:
+            return self.mem[nm]
+        return None
+
+    def set_mem(self, nm, val=0):
+        self.mem[nm] = val

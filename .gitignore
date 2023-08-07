@@ -253,3 +253,4 @@ venv
 
 # VSCODE
 .vscode/
+/data/smcalflow/

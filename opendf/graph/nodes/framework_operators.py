@@ -12,10 +12,10 @@ Their main usages are:
 
 from sqlalchemy import or_, select, not_, and_
 from sqlalchemy.sql import Join
-from opendf.defs import VIEW, POS, is_pos, posname, Message
+from opendf.defs import VIEW, POS, is_pos, posname
 from opendf.exceptions.df_exception import InvalidNumberOfInputsException, NotImplementedYetDFException, \
     InvalidResultException, ElementNotFoundException
-from opendf.utils.utils import flatten_list
+from opendf.utils.utils import flatten_list, Message
 from opendf.graph.nodes.framework_objects import Bool, Str
 from opendf.graph.nodes.node import Node
 
@@ -84,6 +84,8 @@ class Modifier(Node):
         # inp = self.input_view(posname(1))
         inp = self.res
         # if inp:
+        if inp==self:
+            return False # hack! avoid infinite recursion
         return inp.match(obj, check_level=check_level, match_miss=match_miss)
         # return super(Node, self).match(obj, iview, oview, check_level, match_miss)
 

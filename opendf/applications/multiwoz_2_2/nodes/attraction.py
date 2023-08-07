@@ -1,7 +1,7 @@
 from opendf.applications.multiwoz_2_2.nodes.multiwoz import *
 from opendf.applications.multiwoz_2_2.utils import *
 from opendf.graph.nodes.framework_functions import revise, duplicate_subgraph
-
+from opendf.utils.utils import Message
 
 if use_database:
     multiwoz_db = MultiWozSqlDB.get_instance()
@@ -10,6 +10,20 @@ else:
 node_fact = NodeFactory.get_instance()
 environment_definitions = EnvironmentDefinition.get_instance()
 
+
+map_attraction_slots = {
+    "attraction-name":"name=%s" if EXTRACT_SIMP else "name=LIKE(Name(%s))",
+    "attraction-type":"type=%s",
+    "attraction-pricerange":"pricerange=%s",
+    "attraction-area":"area=%s",
+}
+
+map_attraction_inputs = {
+    "name": "%s",
+    "type": "is a %s",
+    "pricerange": "with a %s price range",
+    "area": "in the %s",
+}
 
 class Attraction(MultiWOZDomain):
 
@@ -24,6 +38,52 @@ class Attraction(MultiWOZDomain):
         self.signature.add_sig('postcode', Postcode)
         self.signature.add_sig('address', Address)
         self.signature.add_sig('entrancefee', EntranceFee)
+
+    @staticmethod
+    def gen_get_field_str_format(name, prms=None):
+        return gen_get_field_str_format(name, map_attraction_inputs)
+
+    @staticmethod
+    def gen_show_options():
+        return ['name', 'type', 'area', 'pricerange', 'entrancefee']  # , 'address', 'phone', 'postcode']
+
+    @staticmethod
+    def gen_get_alternative_values(name, prms=None):
+        if name=='name':
+            return ['city college', 'central museum', 'botanical garden']
+        if name=='type':
+            return ['college', 'museum', 'park']
+        if name=='area':
+            return ['north', 'south', 'west', 'east', 'center']
+        if name=='pricerange':
+            return ['cheap', 'moderate', 'expensive']
+        return []
+
+    def gen_field_opts(self, node_name, prms=None):
+        opts = []
+        add_field_opt(opts, self, 'name', -0.5)
+        add_field_opt(opts, self, 'type', 0)
+        add_field_opt(opts, self, 'area', 0)
+        add_field_opt(opts, self, 'pricerange', 0)
+        if prms and 'full' in prms:
+            add_field_opt(opts, self, 'phone', 0)
+            add_field_opt(opts, self, 'postcode', -0.2)
+            add_field_opt(opts, self, 'address', 0)
+            add_field_opt(opts, self, 'entrancefee', -0.2)
+        return opts
+
+    # replace slot value with a random (but valid) value for the given opt
+    @staticmethod
+    def get_alternative_opt_value(opt):
+        slot, txt = opt
+        if '=' in slot:
+            slot = slot.split('=')[0]
+        vals = Attraction.gen_get_alternative_values(slot)
+        if vals:
+            val = random.choice(vals)
+            #return '%s=%s' % (slot, val), Attraction.gen_get_field_str_format(slot) % val
+            return '%s=%s' % (slot, val), gen_get_field_str_format(slot, map_attraction_inputs) % val
+        return opt
 
     def get_context_values(self, inform_values=None, req_fields=None):
         slot_values = {}
@@ -89,22 +149,35 @@ class Attraction(MultiWOZDomain):
         g.tags[DB_NODE_TAG] = 0
         return g
 
+    # def describe(self, params=None):
+    #     prms = []
+    #     address, area, name, pricerange, type = \
+    #         self.get_dats(['address', 'area',  'name', 'pricerange', 'type'])
+    #     prms.append(name if name else 'the ' + type if type else 'the attraction')
+    #     if type:
+    #         prms.append('is a %s' % type)
+    #     if area:
+    #         prms.append('in the %s' % area)
+    #     if pricerange:
+    #         prms.append('%s price range' % pricerange)
+    #
+    #     return Message(', '.join(prms), objects=[self])
+
     def describe(self, params=None):
         prms = []
-        address, area, name, pricerange, type = \
-            self.get_dats(['address', 'area',  'name', 'pricerange', 'type'])
+        name, type = \
+            self.get_dats(['name', 'type'])
         prms.append(name if name else 'the ' + type if type else 'the attraction')
-        if type:
-            prms.append('is a %s' % type)
-        if area:
-            prms.append('in the %s' % area)
-        if pricerange:
-            prms.append('%s price range' % pricerange)
-
+        for i in ['type', 'area', 'day', 'pricerange']:
+            dt = self.get_dat(i)
+            if dt:
+                prms.append(map_attraction_inputs[i] % dt)
         return Message(', '.join(prms), objects=[self])
 
     def collect_state(self):
         do_collect_state(self, 'attraction')
+
+
 
 
 class FindAttraction(Node):
@@ -200,7 +273,7 @@ class FindAttraction(Node):
                     if dfields:
                         req_fields = {i:'?' for i in list(dfields.keys())[:2]}
 
-            msg = self.describe_inform_request(nresults0, inform_fields, req_fields)
+            msg, objs = self.describe_inform_request(nresults0, inform_fields, req_fields)
 
             #update_mwoz_state(att, context, inform_fields, req_fields)  # use inform_fields to update state
             if nresults!=1:
@@ -265,6 +338,7 @@ class FindAttraction(Node):
 
     def describe_inform_request(self, nresults0, inform_fields, req_fields):
         prms = []
+        objs = []
         nm = inform_fields.get('name')
         if nm and 'rec_name' not in inform_fields :
             prms.append('I have found ' + and_values_str(nm))
@@ -301,12 +375,13 @@ class FindAttraction(Node):
         if 'rec_name' in inform_fields:
             prms.append('I recommend %s' % inform_fields['rec_name'][0])
         if len(req_fields) > 0:
+            objs = [i for i in req_fields]
             if nresults0 > 0:
-                prms.append('maybe select %s' % ' or '.join([i for i in req_fields]))
+                prms.append('maybe select %s' % ' or '.join(objs))
             else:
-                prms.append('Sorry, I can\'t find a match. Try a different %s' % ' or '.join([i for i in req_fields]))
+                prms.append('Sorry, I can\'t find a match. Try a different %s' % ' or '.join(objs))
         msg = ', '.join(prms)
-        return msg
+        return msg, objs
 
     def on_duplicate(self, dup_tree=False):
         super().on_duplicate(dup_tree=dup_tree)
@@ -325,6 +400,95 @@ class FindAttraction(Node):
             self.res.collect_state()
         elif 'attraction' in self.inputs:
             self.inputs['attraction'].collect_state()
+
+    def gen_user(self, target, context, node_map, persona, tried=None):
+        # using the convention:
+        #    if calling for the first time (before the current FindAttraction even exists), then
+        #    self is actually target, and target is given as None
+        tried = tried if tried else []
+        curr_exists = target is not None
+        targ = target if curr_exists else self
+        ctx = self.context
+        if EXTRACT_SIMP:
+            # 1. we may ask a question about the attraction
+            attr = self.res
+            if curr_exists and (random.random()<persona.ask_incomplete or
+                                (random.random()<persona.ask_complete and attr and attr.typename()=='Attraction')):
+                if attr and attr.typename()!='Attraction':
+                    attr = None
+                slot = random.choice(['type', 'area', 'address', 'phone', 'postcode', 'entrancefee'])
+                txt = 'what is the %s of the attraction?' % slot  # todo - make nicer
+                pexp = 'get_attraction_info('
+                if attr:
+                    references = get_refer_match(ctx, Node.collect_nodes(ctx.goals), ctx.goals, pos1='Attraction?()')
+                    rr = 'refer(Attraction?())' if references and references[0]==attr else id_sexp(attr)
+                    pexp += 'attraction=%s, ' % rr
+                pexp += slot + ')'
+                return pexp, txt, None, False
+            else:  # 2. otherwise - continue revising
+                objs = []
+                if curr_exists:  # self is in the current graph. try to find exception from prev turn
+                    es = self.context.get_prev_exceptions(ndtyps=['FindAttraction'])
+                    objs = sum([e.objects for e in es], [])
+                opts = targ.get_opts()
+                copts = self.get_opts() if curr_exists else []
+                opts = [o for o in opts if o not in copts]   # do not repeat existing options
+                if opts:
+                    max_opts = min(3, len(opts))  # todo - if all opts already given...
+                    min_opts = 0 if not curr_exists else 1
+                    n = select_n_opts(min_opts, max_opts)
+                    sel_opts = []
+                    if objs:
+                        pref_opts = [(i,j, w) for k in objs for (i,j, w) in opts if i.startswith(k) ]
+                        if pref_opts:
+                            if random.random()<persona.select_suggested:  # frequently - select only one of the suggested slots
+                                sel_opts = select_weighted_opt_choices(pref_opts, 1, persona.base_option_noise)  # [random.choice(pref_opts)]
+                    if not sel_opts:
+                        # random.shuffle(opts)
+                        # sel_opts = opts[:n]
+                        sel_opts = select_weighted_opt_choices(opts, n, persona.base_option_noise)
+                    sel_opts = self.add_slot_noise(sel_opts, noise=persona.slot_noise)
+                    # if curr_exists:  # if we want to add refer even before task created, then we have to pass
+                    #                  # as input the current context (and give it as input to add_refer)
+                    #     sel_opts = add_refer(self, sel_opts, persona.add_refer)
+                    pexp = 'revise_attraction(' + ','.join([i for (i,j) in sel_opts]) + ')'
+                    txt = "I'm looking for an attraction "
+                    if len(sel_opts)>3:
+                        x=1
+                    if len(sel_opts)>0:
+                        txt += ', '.join([j for (i,j) in sel_opts])
+                    return pexp, txt, None, False
+        return '', '', None, False
+
+    # base function - generate text of user request for input inp given target node
+    def gen_user_text(self, target, inp):
+        # should always be customized!
+        v = target.input_view(inp)
+        if v:
+            return 'I want %s to be %s' % (inp, v.describe().text)
+        return 'grrr...'
+
+    def compare_task(self, other):
+        cattr = self.input_view('attraction')
+        oattr = other.input_view('attraction')
+        if cattr.typename() == 'Attraction':
+            if oattr.typename() == 'Attraction':
+                if cattr.compare_graphs(oattr):
+                    return True
+        return False
+
+    def get_opts(self):
+        opts = []
+        for i in ['attraction']:
+            if i in self.inputs:
+                opts += self.input_view(i).gen_field_opts('FindAttraction')
+        return opts
+
+    def add_slot_noise(self, opts, noise=0):
+        if noise>0:
+            opts = [o if random.random() > noise else
+                    Attraction.get_alternative_opt_value(o) for o in opts]
+        return opts
 
 
 class revise_attraction(revise):
@@ -394,7 +558,7 @@ class get_attraction_info(Node):
     def exec(self, all_nodes=None, goals=None):
         att = self.input_view('attraction')
         if not att:
-            m = get_refer_match(self.context, all_nodes, goals, type='Attraction')
+            m = get_refer_match(self.context, all_nodes, goals, type='Attraction', no_fallback=True)
             if m:
                 att = m[0]
             else:
@@ -413,64 +577,10 @@ class get_attraction_info(Node):
         return msg[0] if msg else Message('')
 
 
-def extract_find_attraction(utterance, slots, context=None, general=None):
-    extracted = []
-    problems = set()
-    has_req = any([i for i in slots if 'request' in i])
-    for name, value in slots.items():
-        if 'choice' in name:
-            continue
-        if 'request-' in name:
-            continue
-        value = select_value(value)
-        if not name.startswith(ATTRACTION_PREFIX):
-            problems.add(f"Slot {name} not mapped for find_attraction!")
-            continue
 
-        role = name[ATTRACTION_PREFIX_LENGTH:]
-        if value in SPECIAL_VALUES:
-            extracted.append(f"{role}={SPECIAL_VALUES[value]}")
-            continue
+def extract_find_attraction(utterance, slots, context, general=None):
+    return extract_find_domain(utterance, slots, context, 'Attraction', map_attraction_slots,
+                               ATTRACTION_PREFIX, [],
+                               ['name', 'area', 'type', 'entrancefee', 'openhours', 'phone', 'address',
+                                'postcode', 'pricerange'], general)
 
-        if context and value not in utterance:
-            references = get_refer_match(context, Node.collect_nodes(context.goals), context.goals,
-                                         role=role, params={'fallback_type':'SearchCompleted', 'role': role})
-            if references and references[0].dat == value:
-                extracted.append(f"{role}=refer(role={role})")
-                continue
-            # else:
-            # TODO: maybe log that the reference could not be found in the graph
-
-        if name == "attraction-name":
-            if EXTRACT_SIMP:
-                extracted.append(f"name={escape_string(value)}")
-            else:
-                extracted.append(f"name=LIKE(Name({escape_string(value)}))")
-        elif name == "attraction-type":
-            extracted.append(f"type={escape_string(value)}")
-        elif name == "attraction-pricerange":
-            extracted.append(f"pricerange={escape_string(value)}")
-        elif name == "attraction-area":
-            extracted.append(f"area={escape_string(value)}")
-        else:
-            problems.add(f"Slot {name} not mapped for find_attraction!")
-
-    extracted_req = []
-    if has_req:
-        for name, value in slots.items():
-            if 'request' in name:
-                value = select_value(value)
-                if not name.startswith(ATTRACTION_PREFIX + 'request-'):
-                    problems.add(f"Slot {name} not mapped for find_attraction request!")
-                    continue
-
-                role = name[ATTRACTION_PREFIX_LENGTH+len('request-'):]
-
-                if role in ['name', 'area', 'type', 'entrancefee', 'openhours', 'phone', 'address',
-                            'postcode', 'pricerange']:
-                    extracted_req.append(role)
-                # todo - add other fields and check not a bad field name
-
-    exps = get_extract_exps('Attraction', context, general, extracted, [], extracted_req)
-
-    return exps, problems

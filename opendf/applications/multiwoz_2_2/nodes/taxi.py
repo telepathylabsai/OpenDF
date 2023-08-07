@@ -1,13 +1,23 @@
 from opendf.applications.multiwoz_2_2.nodes.multiwoz import *
 from opendf.applications.multiwoz_2_2.utils import *
 from opendf.graph.nodes.framework_functions import revise, duplicate_subgraph
+from opendf.utils.utils import Message
 
 node_fact = NodeFactory.get_instance()
 environment_definitions = EnvironmentDefinition.get_instance()
 
-
 # The Taxi domain is different from the other domains in that there are no real taxis the agent is searching over,
 # instead, they are just invented as a combination of type, color, and phone number.
+
+
+map_taxi_slots = {
+    "taxi-departure": "departure=%s" if EXTRACT_SIMP else "departure=Location(%s)",
+    "taxi-destination": "destination=%s" if EXTRACT_SIMP else "destination=Location(%s)",
+    "taxi-bookday": "bookday=%s",
+    "taxi-arriveby": "arriveby=%s",
+    "taxi-leaveat": "leaveat=%s",
+    "taxi-price": "price=%s",
+}
 
 
 class Taxi(MultiWOZDomain):
@@ -197,7 +207,6 @@ class revise_taxi(revise):
         self.signature.add_sig('price', Float)
         self.signature.add_sig('bookday', Book_day)
 
-
     def valid_input(self):  # override the revise valid_input
         pass
 
@@ -233,7 +242,6 @@ class get_taxi_info(Node):
         # self.signature.add_sig('feats', Node)
         self.signature.add_sig(POS, Str)
 
-
     def transform_graph(self, top):
         pnm, parent = self.get_parent()
         if parent.typename()!='side_task':
@@ -266,71 +274,10 @@ class get_taxi_info(Node):
         return msg[0] if msg else Message('')
 
 
-def extract_find_taxi(utterance, slots, context=None, general=None):
-    extracted = []
-    problems = set()
-    has_req = any([i for i in slots if 'request' in i])
-    for name, value in slots.items():
-        if 'request-' in name:
-            continue
-        value = select_value(value)
-        if not name.startswith(TAXI_PREFIX):
-            problems.add(f"Slot {name} not mapped for find_taxi!")
-            continue
 
-        role = name[TAXI_PREFIX_LENGTH:]
-        if value in SPECIAL_VALUES:
-            extracted.append(f"{role}={SPECIAL_VALUES[value]}")
-            continue
 
-        if context and value not in utterance:
-            references = get_refer_match(context, Node.collect_nodes(context.goals), context.goals,
-                                         role=role, params={'fallback_type':'SearchCompleted', 'role': role})
-            if references and references[0].dat == value:
-                extracted.append(f"{role}=refer(role={role})")
-                continue
-            # else:
-            # TODO: maybe log that the reference could not be found in the graph
-        if name == "taxi-departure":
-            if EXTRACT_SIMP:
-                extracted.append(f"departure={escape_string(value)}")
-            else:
-                extracted.append(f"departure=Location({escape_string(value)})")
-        elif name == "taxi-destination":
-            if EXTRACT_SIMP:
-                extracted.append(f"destination={escape_string(value)}")
-            else:
-                extracted.append(f"destination=Location({escape_string(value)})")
-        elif name == "taxi-bookday":
-            extracted.append(f"bookday={escape_string(value)}")
-        elif name == "taxi-arriveby":
-            extracted.append(f"arriveby={escape_string(value)}")
-        elif name == "taxi-leaveat":
-            extracted.append(f"leaveat={escape_string(value)}")
-        elif name == "taxi-price":
-            value = value.replace("pounds", "").replace("pound", "").strip()
-            extracted.append(f"price={value}")
-        else:
-            problems.add(f"Slot {name} not mapped for find_taxi!")
-
-    extracted_req = []
-    if has_req:
-        for name, value in slots.items():
-            if 'request' in name:
-                value = select_value(value)
-                if not name.startswith(TAXI_PREFIX + 'request-'):
-                    problems.add(f"Slot {name} not mapped for find_hotel request!")
-                    continue
-
-                role = name[TAXI_PREFIX_LENGTH+len('request-'):]
-                if value in SPECIAL_VALUES:
-                    extracted_req.append(f"{role}={SPECIAL_VALUES[value]}")
-                    continue
-
-                if role in ['departure', 'destination', 'leaveat', 'arriveby', 'type', 'color', 'price', 'phone']:
-                    extracted_req.append(role)
-                # todo - add other fields and check not a bad field name
-
-    exps = get_extract_exps('Taxi', context, general, extracted, [], extracted_req)
-
-    return exps, problems
+def extract_find_taxi(utterance, slots, context, general=None):
+    return extract_find_domain(utterance, slots, context, 'Taxi', map_taxi_slots,
+                               TAXI_PREFIX, [],
+                               ['departure', 'destination', 'leaveat', 'arriveby', 'type', 'color', 'price', 'phone'],
+                               general)

@@ -1,12 +1,11 @@
-import random
 from opendf.applications.smcalflow.nodes.functions import *
 from opendf.graph.nodes.node import Node
 from opendf.graph.nodes.framework_functions import get_refer_match
 from opendf.applications.smcalflow.nodes.functions import (
-    Message, Int, Bool, Str)
+    Int, Bool, Str)
+from opendf.utils.utils import Message
 from opendf.exceptions.df_exception import (
     DFException, InvalidValueException)
-from opendf.exceptions.__init__ import re_raise_exc
 from opendf.defs import posname
 
 

@@ -7,3 +7,5 @@ pytest
 wheel
 twine
 pyyaml
+numpy
+spacy

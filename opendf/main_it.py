@@ -5,6 +5,8 @@ import logging
 import sys
 import traceback
 
+import yaml
+
 from opendf.applications.smcalflow.database import populate_stub_database, Database
 from opendf.applications.smcalflow.domain import fill_graph_db
 from opendf.applications.fill_type_info import fill_type_info
@@ -17,6 +19,7 @@ from opendf.graph.draw_graph import draw_all_graphs
 from opendf.graph.eval import evaluate_graph
 from opendf.graph.node_factory import NodeFactory
 from opendf.graph.transform_graph import do_transform_graph
+from opendf.main import OpenDFDialogue
 
 logger = logging.getLogger(__name__)
 
@@ -78,72 +81,21 @@ COMMANDS = {
 }
 
 
-def run_turn(expression, dialog_context):
-    """
-    Runs the expression with the dialog context.
-
-    :param expression: the P-expression
-    :type expression: str
-    :param dialog_context: the dialog context
-    :type dialog_context: DialogContext
-    :return: the graph and the exceptions
-    :rtype: Tuple[List[Node], List[Exception]]
-    """
-    if environment_definitions.clear_exc_each_turn:
-        dialog_context.clear_exceptions()
-    if environment_definitions.clear_msg_each_turn:
-        dialog_context.reset_messages()
-
-    igl, ex = construct_graph(expression, dialog_context, constr_tag=OUTLINE_SIMP, no_post_check=True)
-
-    gl, ex = do_transform_graph(igl)  # for drawing without yield
-
-    check_constr_graph(gl)
-
-    # apply implicit accept suggestion if needed. This is when prev turn gave suggestions, and one of them was
-    #   marked as implicit-accept (SUGG_IMPL_AGR) (i.e. apply it if the user moves to another topic without accept or reject)
-    if dialog_context.prev_sugg_act:
-        j = [s[2:] for s in dialog_context.prev_sugg_act if s.startswith(SUGG_IMPL_AGR)]
-        if j and not expression.startswith('AcceptSuggestion') and not expression.startswith('RejectSuggestion'):
-            sx, ms = j[0], None
-            if SUGG_MSG in sx:
-                s = sx.split(SUGG_MSG)
-                sx, ms = s[0], s[1]
-            gl0, ex0 = construct_graph(sx, dialog_context)
-            if ex0 is None:
-                if not gl.contradicting_commands(gl0):
-                    evaluate_graph(gl0)
-                    if ms:
-                        expression.add_message(gl0, ms)
-
-    if ex is None:
-        ex = evaluate_graph(gl)  # send in previous graphs (before curr_graph added)
-
-    # unless a continuation turn, save last exception (agent's last message + hints)
-    dialog_context.set_prev_agent_turn(ex)
-
-    dialog_context.inc_turn_num()
-
-    if dialog_context.exceptions:
-        msg, nd, _, _ = parse_node_exception(dialog_context.exceptions[-1])
-        nd.explain(msg=msg)
-
-    return gl, ex
-
-
 def main():
     print("This is the iterative version of OpenDF.")
     print("Enter an OpenDF P-Expression; or -h for help:")
     restart_dialog = True
     dialog_context = DialogContext()
+    df_dialogue = OpenDFDialogue()
+    gl = None
     while True:
         if restart_dialog:
             dialog_context = DialogContext()
             if use_database:
                 Database.get_instance().clear_database()
-                populate_stub_database()
+                populate_stub_database(dialog_context.init_stub_file)
             else:
-                fill_graph_db(d_context)
+                fill_graph_db(dialog_context, dialog_context.init_stub_file)
             restart_dialog = False
 
         try:
@@ -157,7 +109,7 @@ def main():
                 else:
                     raise Exception(f"Command not found: {command_name}")
             else:
-                gl, ex = run_turn(read, dialog_context)
+                gl, ex, dialog_context, turn_answers = df_dialogue.run_single_turn(read, dialog_context, False, gl)
                 if ex:
                     print(ex[-1].args[0], file=sys.stderr)
                 elif dialog_context.messages:
@@ -176,9 +128,12 @@ def main():
 
 if __name__ == '__main__':
     try:
-        main()
-    except:
-        pass
+        application_config = yaml.load(open("resources/smcalflow_config.yaml", 'r'), Loader=yaml.UnsafeLoader)
+        environment_class = application_config["environment_class"]
+        with environment_class:
+            main()
+    except Exception as e:
+        raise e
     finally:
         if use_database:
             database = Database.get_instance()

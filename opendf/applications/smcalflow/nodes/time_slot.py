@@ -6,7 +6,7 @@ from sqlalchemy import or_
 from opendf.applications.smcalflow.nodes.time_nodes import *
 from opendf.defs import VIEW, posname
 from opendf.applications.smcalflow.exceptions.python_exception import TimeSlotException
-from opendf.utils.utils import flatten_list, to_list
+from opendf.utils.utils import flatten_list, to_list, Message
 
 SI_START = 10  # partial time interval as start
 SI_END = 11
@@ -476,7 +476,7 @@ class TimeSlot(Node):
     def describe(self, params=None):
         s = ''
         obj = []
-        pp = params
+        pp = [] if params is None else params
         if isinstance(params, dict):
             pp['add_prep'] = 1
         else:

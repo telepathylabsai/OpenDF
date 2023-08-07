@@ -7,13 +7,17 @@ The user can select the example by its index, from the command line. The example
 dialogs = [
     # 0
     [
-
-
+        'DeleteEvent(AND(starts_at(Tomorrow()), with_attendee(FindManager(John))))',
+        #'set_ctx_mem(xxx, Int(1))',
+        #'Yield(get_ctx_mem(xxx))',
+        #'Add(get_ctx_mem(xxx), 1)',
+        #'set_ctx_mem(xxx, Int(2))',
+        #'revise(root=Add?(), hasParam=pos2, new=Int(1), newMode=extend)',
         #"Find(Hotel?(internet=yes, pricerange=cheap, type=hotel))",
         #"revise(old=Hotel??(), newMode=overwrite, new=Hotel?(name=LIKE(Name(cambridge belfry)), parking=refer(role=parking)))",
         # 'UpdateEvent(event=Event(start=Today()), update=Event(attendees=AND(#Lindsay, FindManager(#Lindsay))))',
         # 'UpdateEvent(event=Event?(), update=Event?())',
-        'Date(year=2021)',
+        #'Date(year=2022)',
         #'Yield(output=Date(year=2021))',
         # 'revise(hasParam=year, new=#2020, newMode=extend)',
         # 'revise(hasParam=output, new=#2020, newMode=extend)',
@@ -232,11 +236,11 @@ dialogs = [
         # 'refer(Recipient?(name=AND(LIKE(PersonName(John)),NOT(LIKE(PersonName(Doe))))))',
     ],
 
-    # 1
+    # 1 - this is used as part of the automatic tests - do not change!
     [
         'DeleteEvent(AND(starts_at(Tomorrow()), with_attendee(FindManager(John))))'
     ],
-    # 2
+    # 2 - this is used as part of the automatic tests - do not change!
     [
         # 'CreateEvent(starts_at(Morning()))',
         'CreateEvent(starts_at(NumberAM(9)))',
@@ -244,50 +248,60 @@ dialogs = [
         # 'AcceptSuggestion(2)',
         # 'AcceptSuggestion()',
     ],
-    # 3
+    # 3 - this is used as part of the automatic tests - do not change!
     [
         'UpdateEvent(AND(ends_at(HourMinuteAm(hours=10,minutes=30)), at_location(jeffs),\
                     starts_at(NextDOW(SUNDAY)),starts_at(NumberAM(10))), \
                     constraint=AND(ends_at(NumberPM(2)),starts_at(NumberAM(11))))',
     ],
-    # 4
+    # 4 - this is used as part of the automatic tests - do not change!
     [
         'UpdateEvent(event=has_id(4), constraint=starts_at(Time(hour=19)))',
     ],
-    # 5
+    # 5 - this is used as part of the automatic tests - do not change!
     [
         'FindEvents(starts_at(Morning()))',
         'ModifyEventRequest(starts_at(GT(Time(hour=9, minute=0))))',
     ],
-    # 6
+    # 6 - this is used as part of the automatic tests - do not change!
     [
         'FindEvents(AND(avoid_start(Morning()), at_location(room3)))',
     ],
-    # 7
+    # 7 - this is used as part of the automatic tests - do not change!
     [
         'WeatherQueryApi(place=AtPlace(place=FindPlace(Zurich)), time=Today())',
         'WillSnow(table=refer(WeatherTable?()))',
     ],
-    # 8
+    # 8 - this is used as part of the automatic tests - do not change!
     [
         'FindEvents(Event?(slot=TimeSlot(bound=DateTimeRange('
         'start=DateTime(date=Date(year=2022, month=1, day=5), time=Time(hour=10, minute=0)), '
         'end=DateTime(date=Date(year=2022, month=1, day=6), time=Time(hour=13, minute=0))'
         '))))',
     ],
-    # 9
+    # 9 - this is used as part of the automatic tests - do not change!
     [
         'FindEvents(Event?(slot=TimeSlot(inter=DateTimeRange('
         'start=DateTime(date=Date(year=2022, month=1, day=5), time=Time(hour=10, minute=0)), '
         'end=DateTime(date=Date(year=2022, month=1, day=6), time=Time(hour=13, minute=0))'
         '))))',
     ],
-    # 10
+    # 10 - this is used as part of the automatic tests - do not change!
     [
         'GTf(size(FindEvents(with_attendee(jack))), Int(1))'
     ],
-    # 11
+    # 11 - this is used as part of the automatic tests - do not change!
     [
         'GTf(size(FindEvents(starts_at(GT(singleton(FindEvents(with_attendee(jack))))))), Int(1))',
+    ],
+    # 12 create event
+    [
+        #'FindEvents(at_location(room1))',
+        #'CreateEvent(AND(with_attendee(dan), at_location(room3), starts_at(Today())))',
+        'CreateEvent(starts_at(Today()))',
+        #'CreateEvent(starts_at(NumberAM(10)))',
+        #'CreateEvent(starts_at(Time(hour=10)))',
+        #'CreateEvent(AND(with_attendee(dan), starts_at(NumberPM(8))))',
+        #'CreateEvent(starts_at(DateTime(date=Date(day=1), time=Time(hour=1))))',
     ],
 ]

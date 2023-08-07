@@ -31,6 +31,8 @@ color_sat = 1.2  # color saturation - 1.0 default. higher values make drawing mo
 
 # graphviz does not like some characters - replace by char codes. there must be some lib for this...
 def fix_chars(s):
+    if not s:
+        return s
     t = s
     if '&' in s: # in case we call this multiple times on the same string - don't replace '&' again
         t = ''
@@ -68,6 +70,8 @@ def gen_err_msg(ss, w=25, hints=None, sugg=None, fnt_sz=15):
     s = fix_chars(ss)
     msg = ''
     c = ''
+    if not s:
+        s = ' '
     for j in s.split():
         ii = split_len(j, w)
         for i in ii:
@@ -193,7 +197,12 @@ def db_internal(n):
     return False
 
 
+# assumes all nodes are in same context! otherwise, some glitches may occur
 def do_draw_graph(ff, node_names, goals, excp=None, mesg=None, id_off=0, subgraphs=None):
+    if not goals:
+        return
+    show_goals = goals[0].context.goals if not environment_definitions.show_other_goals \
+        else goals[0].context.goals + goals[0].context.other_goals  # hacky - assuming common context
     excp = excp if excp else []
     ex_nodes = [(parse_node_exception(e)[1], 'ExceptionNode##%d' % i, gen_exc_msg(e)) for (i, e) in enumerate(excp)]
     if ex_nodes and environment_definitions.show_last_exc_per_node:
@@ -282,7 +291,9 @@ def do_draw_graph(ff, node_names, goals, excp=None, mesg=None, id_off=0, subgrap
                     f.node(node_names[n], label=lb)
 
             if environment_definitions.show_goal_id:
-                ggg, iii = (goals, id_off) if False else (goals[0].context.goals, 0)
+                # ggg, iii = (goals, id_off) if False else (goals[0].context.goals, 0)
+                # ggg, iii = (goals, 0)
+                ggg, iii = (show_goals, 0)
                 for i, g in enumerate(ggg):  # add numbered circles pointing to goals
                     if g in subg:
                         seen_goals.append(g)
@@ -353,7 +364,9 @@ def do_draw_graph(ff, node_names, goals, excp=None, mesg=None, id_off=0, subgrap
             f.edge(node_names[n.dup_of], node_names[n])
 
     if environment_definitions.show_goal_id:
-        ggg, iii = (goals, id_off) if False else (goals[0].context.goals, 0)
+        # ggg, iii = (goals, id_off) if False else (goals[0].context.goals, 0)
+        # ggg, iii = (goals, id_off)
+        ggg, iii = (show_goals, 0)
         prev_goal = -1
         for i, g in enumerate(ggg):  # add numbered circles pointing to goals
             if g in seen_goals:
@@ -369,6 +382,8 @@ def do_draw_graph(ff, node_names, goals, excp=None, mesg=None, id_off=0, subgrap
 
 
 def draw_graphs(goals, ex, msg, id=0, ok=True, sexp=None, txt=None, simp=None, f=None):
+    if not goals:
+        return
     hide_extra = node_fact.leaf_types if environment_definitions.hide_extra_base else []
     id_off = 0
     if environment_definitions.show_only_n > 0:
@@ -383,7 +398,7 @@ def draw_graphs(goals, ex, msg, id=0, ok=True, sexp=None, txt=None, simp=None, f
         for ii, i in enumerate(goals):
             nn = Node.collect_nodes([i], follow_res=True, follow_detached=environment_definitions.show_detach,
                                     summarize=environment_definitions.summarize_typenames + hide_extra)
-            logger.info('==>> Group %d - got %d nodes', ii, len(nn))
+            # logger.info('==>> Group %d - got %d nodes', ii, len(nn))
             mm = [i for i in nn if i not in ss]
             ss += mm
             subgraphs.append(mm)
@@ -409,7 +424,8 @@ def draw_graphs(goals, ex, msg, id=0, ok=True, sexp=None, txt=None, simp=None, f
     if environment_definitions.show_dialog_id and id != 0:
         f.attr('node', shape='rectangle', style='', color='white', fontsize='', fontcolor='green', fillcolor='')
         f.node('Dialog #%d' % id)
-    lnm = '##' + str(len(goals) + id_off)
+    # lnm = '##' + str(len(goals) + id_off)
+    lnm = '##%d' % len(goals[0].context.goals)  # connect following info to last goal
     if environment_definitions.show_last_ok and environment_definitions.show_goal_id:
         nm = 'Success' if ok else 'Exception'
         col = 'green' if ok else 'red'

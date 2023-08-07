@@ -18,7 +18,7 @@
   ["Jon Smith", "Jon", "Smith", 1003, "41761231003", "jon.smith@opendf.com", 1004, []],
   ["Jane Smith", "Jane", "Smith", 1004, "41761231004", "jane.smith@opendf.com", 1004, []],
   ["Jerry Skinner", "Jerry", "Skinner", 1005, "41761231005", "jerry.skinner@opendf.com", 1004, []],
-  ["Dan Smith", "Dan", "Smith", 1006, "41761231006", "dan.smith@opendf.com", 1004, []],
+  ["Dan Smith", "Dan", "Smith", 1006, "41761231006", "dan.smith@opendf.com", 1004, [1003]],
   ["Adam Smith", "Adam", "Smith", 1007, "41761231007", "adam.smith@opendf.com", 1004, [1001, 1003, 1004]],
   ["Janice  Kang", "Janice", "Kang", 1008, "41761231007", "Janice.Kang@opendf.com", 1004, [1001, 1003, 1004]],
   ["Cher  Rob", "Cher", "Rob", 1009, "41761231007", "Cher.Rob@opendf.com", 1004, [1001, 1003, 1004]]

@@ -131,7 +131,7 @@ def compare_graph_exec(ctx1, ctx2, evs1=None, evs2=None, mode=None):
         m1 = n1.result.yield_msg()
         s1, o1 = m1.text, m1.objects  # y1 if isinstance(y1, tuple) and len(y1)==2 else (y1, ['999'])  # temp check, until all yields return objs
         m2 = n2.result.yield_msg()
-        s2, o2 = ms.text, m2.objects  #y2 if isinstance(y2, tuple) and len(y2)==2 else (y2, ['999'])  # temp check, until all yields return objs
+        s2, o2 = m2.text, m2.objects  #y2 if isinstance(y2, tuple) and len(y2)==2 else (y2, ['999'])  # temp check, until all yields return objs
         o1, o2 = conv_obj(o1), conv_obj(o2)
         ok = all([o in o2 for o in o1])
         # print(o1)

@@ -6,14 +6,17 @@ from sqlalchemy import select
 from opendf.applications.core.nodes.time_nodes import *
 from opendf.applications.smcalflow.database import Database
 from opendf.applications.smcalflow.storage_factory import StorageFactory
-from opendf.defs import get_system_date, posname, get_system_datetime, Message
+from opendf.defs import get_system_date, posname, get_system_datetime
 from opendf.exceptions.df_exception import IncompatibleInputException, InvalidValueException, \
     InvalidResultException, InvalidInputException
 from opendf.applications.smcalflow.exceptions.df_exception import HolidayNotFoundException, MultipleHolidaysFoundException
 from opendf.graph.nodes.framework_operators import LIKE
-from opendf.utils.utils import to_list
+from opendf.utils.utils import to_list, Message
+from opendf.defs import EnvironmentDefinition
+import random
 
 storage = StorageFactory.get_instance()
+environment_definitions = EnvironmentDefinition.get_instance()
 
 
 class RawDateTime(Node):
@@ -130,6 +133,47 @@ class adjustByPeriod(Node):
             g, _ = Node.call_construct_eval(new_date, self.context)
 
         self.set_result(g)
+
+    @classmethod
+    def can_gen_comp_func(cls, otyp=None, val=None, val_parent=None, inp_nm=None):
+        s = 'check func %s can gen %s to replace % as %s of %s' % \
+            (cls.__name__, otyp.__name__, val.typename(), inp_nm, val_parent.typename())
+        if environment_definitions.gen_mode == 'rand_noDB':
+            return True
+        return False
+
+    @classmethod
+    def do_gen_comp_func(cls, otyp=None, val=None, val_parent=None, inp_nm=None, last_step=False):
+        s = 'repl: %s gens %s to replace %s as %s of %s [last=%s]' % \
+            (cls.__name__, otyp.__name__, val.typename(), inp_nm, val_parent.typename(), last_step)
+        if environment_definitions.gen_mode == 'rand_noDB' and not last_step:
+            if val_parent.typename().startswith('adjustBy'):
+                return False, [], []
+            ctx = val.context
+            i = random.randint(1,3)
+            o = 'Date'
+            if val.outypename=='DateTime':
+                o = 'DateTime'
+            if o=='Date':
+                p = random.choice(['toDays', 'toWeeks', 'toMonths'])
+                s = 'adjustByPeriod(Date?(), %s(%d))' % (p, i)
+            else:
+                p = random.choice(['toHours', 'toMinutes', 'toDays', 'toWeeks', 'toMonths'])
+                s = 'adjustByPeriod(DateTime?(), %s(%d))' % (p, i)
+
+            d, _ = Node.call_construct(s, ctx)
+            e = d.input_view('pos1')
+            f = d.input_view('pos2').topological_order()
+            return d, [d] + f, [e]
+        return False, [], []
+
+    def gen_to_NL(self, params=None):
+        p2 = self.inputs['pos2'] # .typename()
+        p1 = self.inputs['pos1']
+        # if p in ['toMonths','month','toWeeks','toDays','toHours','toMinutes']:
+        #     s = self.inputs['pos2'].gen_to_NL(params)
+        s = p2.gen_to_NL() + ' after ' + p1.gen_to_NL()
+        return s
 
 
 # #####################################################################################################
@@ -288,6 +332,27 @@ class Afternoon(Node):
                                         self.context)
         self.set_result(d)
 
+    def gen_to_NL(self, params=None):
+        return 'in the afternoon'
+
+    @classmethod
+    def can_gen_comp_func(cls, otyp=None, val=None, val_parent=None, inp_nm=None):
+        s = 'check func %s can gen %s to replace % as %s of %s' % \
+            (cls.__name__, otyp.__name__, val.typename(), inp_nm, val_parent.typename())
+        if environment_definitions.gen_mode == 'rand_noDB':
+            return True
+        return False
+
+    @classmethod
+    def do_gen_comp_func(cls, otyp=None, val=None, val_parent=None, inp_nm=None, last_step=False):
+        s = 'repl: %s gens %s to replace %s as %s of %s [last=%s]' % \
+            (cls.__name__, otyp.__name__, val.typename(), inp_nm, val_parent.typename(), last_step)
+        if environment_definitions.gen_mode == 'rand_noDB':
+            ctx = val.context
+            d, _ = Node.call_construct('Afternoon()', ctx)
+            return d, [d], []
+        return False, [], []
+
 
 class LateAfternoon(Node):
     """
@@ -302,6 +367,27 @@ class LateAfternoon(Node):
         d, e = self.call_construct_eval('TimeRange(start=Time(hour=15,minute=30), end=Time(hour=17, minute=00))',
                                         self.context)
         self.set_result(d)
+
+    @classmethod
+    def can_gen_comp_func(cls, otyp=None, val=None, val_parent=None, inp_nm=None):
+        s = 'check func %s can gen %s to replace % as %s of %s' % \
+            (cls.__name__, otyp.__name__, val.typename(), inp_nm, val_parent.typename())
+        if environment_definitions.gen_mode == 'rand_noDB':
+            return True
+        return False
+
+    @classmethod
+    def do_gen_comp_func(cls, otyp=None, val=None, val_parent=None, inp_nm=None, last_step=False):
+        s = 'repl: %s gens %s to replace %s as %s of %s [last=%s]' % \
+            (cls.__name__, otyp.__name__, val.typename(), inp_nm, val_parent.typename(), last_step)
+        if environment_definitions.gen_mode == 'rand_noDB':
+            ctx = val.context
+            d, _ = Node.call_construct('LateAfternoon()', ctx)
+            return d, [d], []
+        return False, [], []
+
+    def gen_to_NL(self, params=None):
+        return 'late afternoon'
 
 
 class Evening(Node):
@@ -318,9 +404,62 @@ class Evening(Node):
                                         self.context)
         self.set_result(d)
 
+    @classmethod
+    def can_gen_comp_func(cls, otyp=None, val=None, val_parent=None, inp_nm=None):
+        s = 'check func %s can gen %s to replace % as %s of %s' % \
+            (cls.__name__, otyp.__name__, val.typename(), inp_nm, val_parent.typename())
+        if environment_definitions.gen_mode == 'rand_noDB':
+            return True
+        return False
 
-class Night(Evening):
-    pass
+    @classmethod
+    def do_gen_comp_func(cls, otyp=None, val=None, val_parent=None, inp_nm=None, last_step=False):
+        s = 'repl: %s gens %s to replace %s as %s of %s [last=%s]' % \
+            (cls.__name__, otyp.__name__, val.typename(), inp_nm, val_parent.typename(), last_step)
+        if environment_definitions.gen_mode == 'rand_noDB':
+            ctx = val.context
+            d, _ = Node.call_construct('Evening()', ctx)
+            return d, [d], []
+        return False, [], []
+
+    def gen_to_NL(self, params=None):
+        return 'evening'
+
+
+class Night(Node):
+    """
+    Returns TimeRange() for morning.
+    """
+
+    def __init__(self):
+        super().__init__(TimeRange)
+
+    def exec(self, all_nodes=None, goals=None):
+        # TODO: hard-coded value should become a constant
+        d, e = self.call_construct_eval('TimeRange(start=Time(hour=0,minute=0), end=Time(hour=4, minute=30))',
+                                        self.context)
+        self.set_result(d)
+
+    @classmethod
+    def can_gen_comp_func(cls, otyp=None, val=None, val_parent=None, inp_nm=None):
+        s = 'check func %s can gen %s to replace % as %s of %s' % \
+            (cls.__name__, otyp.__name__, val.typename(), inp_nm, val_parent.typename())
+        if environment_definitions.gen_mode == 'rand_noDB':
+            return True
+        return False
+
+    @classmethod
+    def do_gen_comp_func(cls, otyp=None, val=None, val_parent=None, inp_nm=None, last_step=False):
+        s = 'repl: %s gens %s to replace %s as %s of %s [last=%s]' % \
+            (cls.__name__, otyp.__name__, val.typename(), inp_nm, val_parent.typename(), last_step)
+        if environment_definitions.gen_mode == 'rand_noDB':
+            ctx = val.context
+            d, _ = Node.call_construct('Night()', ctx)
+            return d, [d], []
+        return False, [], []
+
+    def gen_to_NL(self, params=None):
+        return 'night'
 
 
 class Midnight(Node):
@@ -337,6 +476,27 @@ class Midnight(Node):
             f"DateTime(date=Date(year={day.year},month={day.month},day={day.day}), time=Time(hour=0, minute=0))",
             self.context)
         self.set_result(g)
+
+    @classmethod
+    def can_gen_comp_func(cls, otyp=None, val=None, val_parent=None, inp_nm=None):
+        s = 'check func %s can gen %s to replace % as %s of %s' % \
+            (cls.__name__, otyp.__name__, val.typename(), inp_nm, val_parent.typename())
+        if environment_definitions.gen_mode == 'rand_noDB':
+            return True
+        return False
+
+    @classmethod
+    def do_gen_comp_func(cls, otyp=None, val=None, val_parent=None, inp_nm=None, last_step=False):
+        s = 'repl: %s gens %s to replace %s as %s of %s [last=%s]' % \
+            (cls.__name__, otyp.__name__, val.typename(), inp_nm, val_parent.typename(), last_step)
+        if environment_definitions.gen_mode == 'rand_noDB':
+            ctx = val.context
+            d, _ = Node.call_construct('Midnight()', ctx)
+            return d, [d], []
+        return False, [], []
+
+    def gen_to_NL(self, params=None):
+        return 'midnight'
 
 
 # input-less function
@@ -358,6 +518,27 @@ class Today(Node):
         g = self.res
         return Message('Today is %d %s %d' % (g.get_dat('day'), monthname_full[g.get_dat('month') - 1], g.get_dat('year')))
 
+    def gen_to_NL(self, params=None):
+        return 'today'
+
+    @classmethod
+    def can_gen_comp_func(cls, otyp=None, val=None, val_parent=None, inp_nm=None):
+        s = 'check func %s can gen %s to replace % as %s of %s' % \
+            (cls.__name__, otyp.__name__, val.typename(), inp_nm, val_parent.typename())
+        if environment_definitions.gen_mode == 'rand_noDB':
+            return True
+        return False
+
+    @classmethod
+    def do_gen_comp_func(cls, otyp=None, val=None, val_parent=None, inp_nm=None, last_step=False):
+        s = 'repl: %s gens %s to replace %s as %s of %s [last=%s]' % \
+            (cls.__name__, otyp.__name__, val.typename(), inp_nm, val_parent.typename(), last_step)
+        if environment_definitions.gen_mode == 'rand_noDB':
+            ctx = val.context
+            d, _ = Node.call_construct('Today()', ctx)
+            return d, [d], []
+        return False, [], []
+
 
 class Tomorrow(Node):
     """
@@ -376,6 +557,27 @@ class Tomorrow(Node):
         g = self.res
         return Message('Tomorrow is %d %s %d' % (g.get_dat('day'), monthname_full[g.get_dat('month') - 1], g.get_dat('year')))
 
+    def gen_to_NL(self, params=None):
+        return 'tomorrow'
+
+    @classmethod
+    def can_gen_comp_func(cls, otyp=None, val=None, val_parent=None, inp_nm=None):
+        s = 'check func %s can gen %s to replace % as %s of %s' % \
+            (cls.__name__, otyp.__name__, val.typename(), inp_nm, val_parent.typename())
+        if environment_definitions.gen_mode == 'rand_noDB':
+            return True
+        return False
+
+    @classmethod
+    def do_gen_comp_func(cls, otyp=None, val=None, val_parent=None, inp_nm=None, last_step=False):
+        s = 'repl: %s gens %s to replace %s as %s of %s [last=%s]' % \
+            (cls.__name__, otyp.__name__, val.typename(), inp_nm, val_parent.typename(), last_step)
+        if environment_definitions.gen_mode == 'rand_noDB':
+            ctx = val.context
+            d, _ = Node.call_construct('Tomorrow()', ctx)
+            return d, [d], []
+        return False, [], []
+
 
 class Yesterday(Node):
     """
@@ -393,6 +595,27 @@ class Yesterday(Node):
     def yield_msg(self, params=None):
         g = self.res
         return Message('Yesterday was %d %s %d' % (g.get_dat('day'), monthname_full[g.get_dat('month') - 1], g.get_dat('year')))
+
+    def gen_to_NL(self, params=None):
+        return 'yesterday'
+
+    @classmethod
+    def can_gen_comp_func(cls, otyp=None, val=None, val_parent=None, inp_nm=None):
+        s = 'check func %s can gen %s to replace % as %s of %s' % \
+            (cls.__name__, otyp.__name__, val.typename(), inp_nm, val_parent.typename())
+        if environment_definitions.gen_mode == 'rand_noDB':
+            return True
+        return False
+
+    @classmethod
+    def do_gen_comp_func(cls, otyp=None, val=None, val_parent=None, inp_nm=None, last_step=False):
+        s = 'repl: %s gens %s to replace %s as %s of %s [last=%s]' % \
+            (cls.__name__, otyp.__name__, val.typename(), inp_nm, val_parent.typename(), last_step)
+        if environment_definitions.gen_mode == 'rand_noDB':
+            ctx = val.context
+            d, _ = Node.call_construct('Yesterday()', ctx)
+            return d, [d], []
+        return False, [], []
 
 
 class nextDayOfWeek(Node):
@@ -568,6 +791,27 @@ class NextWeekend(Node):
             f"DateRange(start={id_sexp(g.res)}, end={Pdate_to_date_sexp(day + timedelta(days=1))})", self.context)
         self.set_result(r)
 
+    @classmethod
+    def can_gen_comp_func(cls, otyp=None, val=None, val_parent=None, inp_nm=None):
+        s = 'check func %s can gen %s to replace % as %s of %s' % \
+            (cls.__name__, otyp.__name__, val.typename(), inp_nm, val_parent.typename())
+        if environment_definitions.gen_mode == 'rand_noDB':
+            return True
+        return False
+
+    @classmethod
+    def do_gen_comp_func(cls, otyp=None, val=None, val_parent=None, inp_nm=None, last_step=False):
+        s = 'repl: %s gens %s to replace %s as %s of %s [last=%s]' % \
+            (cls.__name__, otyp.__name__, val.typename(), inp_nm, val_parent.typename(), last_step)
+        if environment_definitions.gen_mode == 'rand_noDB':
+            ctx = val.context
+            d, _ = Node.call_construct('NextWeekend()', ctx)
+            return d, [d], []
+        return False, [], []
+
+    def gen_to_NL(self, params=None):
+        return 'next weekend'
+
 
 # There are some ways of thinking about first/last week of a month, and also the definition a week (e.g.
 # what is the start and end of a week). In this implementation, we assume that the first week of the month is the week
@@ -597,6 +841,48 @@ class NumberWeekOfMonth(Node):
         g, _ = Node.call_construct_eval(f"DateRange({Pdate_to_date_sexp(start)}, {Pdate_to_date_sexp(end)})", self.context)
 
         self.set_result(g)
+
+    @classmethod
+    def can_gen_comp_func(cls, otyp=None, val=None, val_parent=None, inp_nm=None):
+        s = 'check func %s can gen %s to replace % as %s of %s' % \
+            (cls.__name__, otyp.__name__, val.typename(), inp_nm, val_parent.typename())
+        if environment_definitions.gen_mode == 'rand_noDB':
+            return True
+        return False
+
+    @classmethod
+    def do_gen_comp_func(cls, otyp=None, val=None, val_parent=None, inp_nm=None, last_step=False):
+        s = 'repl: %s gens %s to replace %s as %s of %s [last=%s]' % \
+            (cls.__name__, otyp.__name__, val.typename(), inp_nm, val_parent.typename(), last_step)
+        if environment_definitions.gen_mode == 'rand_noDB':
+            parents, _ = val.parent_nodes()
+            ptypes = [p.typename() for p in parents]
+            if 'NumberWeekOfMonth' in ptypes:
+                return False, [], []
+            ctx = val.context
+            w = random.randint(1,3)
+            m = random.choice(monthname_full[3:7])
+            #e = []
+            if random.random() < 0.5:
+                from opendf.applications.smcalflow.nodes.modifiers import gen_rand_event_constraints
+                m = ':month(:start(FindEvents(%s)))' % gen_rand_event_constraints()
+                #e=1
+            d, _ = Node.call_construct('NumberWeekOfMonth(month=%s, number=%d)' %(m, w), ctx)
+            ig = d.topological_order()
+            # if e:
+            #     e = [d.get_ext_view('month.pos2.pos2')]
+            #     ig = [n for n in ig if n not in e]
+            return d, ig, []
+        return False, [], []
+
+    def gen_to_NL(self, params=None):
+        m, w = self.get_dats(['month', 'number'])
+        # if not m or not w:
+        #     return ''
+        o = ['first', 'second', 'third', 'fourth']
+        sw = o[w-1]
+        sm = m if m else self.inputs['month'].gen_to_NL(params)
+        return 'the %s week of %s' % (sw, sm)
 
 
 class NumberWeekFromEndOfMonth(Node):
@@ -845,6 +1131,30 @@ class nextDayOfMonth(Node):
 
         g, e = self.call_construct_eval(result, self.context)
         self.set_result(g)
+
+    @classmethod
+    def can_gen_comp_func(cls, otyp=None, val=None, val_parent=None, inp_nm=None):
+        s = 'check func %s can gen %s to replace % as %s of %s' % \
+            (cls.__name__, otyp.__name__, val.typename(), inp_nm, val_parent.typename())
+        if environment_definitions.gen_mode == 'rand_noDB':
+            return True
+        return False
+
+    @classmethod
+    def do_gen_comp_func(cls, otyp=None, val=None, val_parent=None, inp_nm=None, last_step=False):
+        s = 'repl: %s gens %s to replace %s as %s of %s [last=%s]' % \
+            (cls.__name__, otyp.__name__, val.typename(), inp_nm, val_parent.typename(), last_step)
+        if environment_definitions.gen_mode == 'rand_noDB':
+            day = random.randint(2,5)
+            ctx = val.context
+            d, _ = Node.call_construct('nextDayOfMonth(Today(), %d)' % day, ctx)
+            return d, d.topological_order(), []
+        return False, [], []
+
+    def gen_to_NL(self, params=None):
+        d = self.get_dat(posname(2))
+        ext = 'st' if d in [1,21,31] else 'nd' if d in [2,22] else 'th'
+        return 'the %d %s' %(d, ext)
 
 
 class previousDayOfMonth(Node):
@@ -1273,15 +1583,68 @@ class NumberPM(Node):
 
     def __init__(self):
         super().__init__(Time)
-        self.signature.add_sig(posname(1), Int)
+        self.signature.add_sig(posname(1), [Int, Time])
 
     def exec(self, all_nodes=None, goals=None):
-        number = self.get_dat(posname(1))
-        if number < 12:
-            number += 12
-        s = time_sexp(number, 0)
-        d, e = self.call_construct_eval(s, self.context)
-        self.set_result(d)
+        p = self.input_view(posname(1))
+        if p:
+            number = p.dat if isinstance(p, Int) else p.get_dat('hour')
+            if number is None:
+                raise DFException('Wrong input to NumberPM', self)
+            if number < 12:
+                number += 12
+            s = time_sexp(number, 0)
+            d, e = self.call_construct_eval(s, self.context)
+            self.set_result(d)
+        else:
+            raise DFException('Missing input to NumberPM', self)
+
+    def get_gen_type(self, nm=None):
+        return Time
+
+    @classmethod
+    def can_gen_comp_func(cls, otyp=None, val=None, val_parent=None, inp_nm=None):
+        s = 'check func %s can gen %s to replace % as %s of %s' % \
+            (cls.__name__, otyp.__name__, val.typename(), inp_nm, val_parent.typename())
+        if environment_definitions.gen_mode == 'rand_noDB':
+            return True
+        return False
+
+    @classmethod
+    def do_gen_comp_func(cls, otyp=None, val=None, val_parent=None, inp_nm=None, last_step=False):
+        s = 'repl: %s gens %s to replace %s as %s of %s [last=%s]' % \
+            (cls.__name__, otyp.__name__, val.typename(), inp_nm, val_parent.typename(), last_step)
+        if environment_definitions.gen_mode == 'rand_noDB':
+            parents, _ = val.parent_nodes()
+            ptypes = [p.typename() for p in parents]
+            if 'NumberAM' in ptypes or 'NumberPM' in ptypes or 'HourMinuteAM' in ptypes or 'HourMinutePM' in ptypes:
+                return False, [], []
+            ctx = val.context
+            h = random.randint(4,7)
+            t = 'NumberPM(%d)' % h
+            if inp_nm == 'hour' and val_parent.typename() in ['date', 'DateTime']:
+                t = ':hour(' + t + ')'
+            if inp_nm == 'hour' and val_parent.typename() in ['date', 'DateTime']:
+                t = ':minute(' + t + ')'
+            d, _ = Node.call_construct(t, ctx)
+            return d, d.topological_order(), []
+        return False, [], []
+
+    @classmethod
+    def gen_type_comparable(cls, inp_nm, out_type, org_type):
+        if org_type=='Int' and out_type in ['Int','Time']:
+            return True
+        return False
+
+    def gen_to_NL(self, params=None):
+        p = self.input_view(posname(1))
+        s = p.gen_to_NL()
+        if s:
+            if s.isnumeric():
+                s = s + ' PM'
+            if params and 'with_prep' in params:
+                s = 'at ' + s
+        return s
 
 
 class NumberAM(Node):
@@ -1301,6 +1664,50 @@ class NumberAM(Node):
         d, e = self.call_construct_eval(s, self.context)
         self.set_result(d)
 
+    def gen_to_NL(self, params=None):
+        p = self.input_view(posname(1))
+        s = p.gen_to_NL()
+        if s:
+            if s.isnumeric():
+                s = s + ' AM'
+        if params and 'with_prep' in params:
+            s = 'at ' + s
+        return s
+
+    @classmethod
+    def gen_type_comparable(cls, inp_nm, out_type, org_type):
+        if org_type=='Int' and out_type in ['Int','Time']:
+            return True
+        return False
+
+    @classmethod
+    def can_gen_comp_func(cls, otyp=None, val=None, val_parent=None, inp_nm=None):
+        s = 'check func %s can gen %s to replace % as %s of %s' % \
+            (cls.__name__, otyp.__name__, val.typename(), inp_nm, val_parent.typename())
+        if environment_definitions.gen_mode == 'rand_noDB':
+            return True
+        return False
+
+    @classmethod
+    def do_gen_comp_func(cls, otyp=None, val=None, val_parent=None, inp_nm=None, last_step=False):
+        s = 'repl: %s gens %s to replace %s as %s of %s [last=%s]' % \
+            (cls.__name__, otyp.__name__, val.typename(), inp_nm, val_parent.typename(), last_step)
+        if environment_definitions.gen_mode == 'rand_noDB':
+            parents, _ = val.parent_nodes()
+            ptypes = [p.typename() for p in parents]
+            if 'NumberAM' in ptypes or 'NumberPM' in ptypes or 'HourMinuteAM' in ptypes or 'HourMinutePM' in ptypes:
+                return False, [], []
+            ctx = val.context
+            h = random.randint(7,10)
+            t = 'NumberAM(%d)' % h
+            if inp_nm == 'hour' and val_parent.typename() in ['date', 'DateTime']:
+                t = ':hour(' + t + ')'
+            if inp_nm == 'hour' and val_parent.typename() in ['date', 'DateTime']:
+                t = ':minute(' + t + ')'
+            d, _ = Node.call_construct(t, ctx)
+            return d, d.topological_order(), []
+        return False, [], []
+
 
 class HourMinutePm(Node):
     """
@@ -1318,6 +1725,59 @@ class HourMinutePm(Node):
         d, e = self.call_construct_eval(time_sexp(hour, minute), self.context)
         self.set_result(d)
 
+    def gen_to_NL(self, params=None):
+        h, m = self.get_input_views(['hours', 'minutes'])
+        hh, mm = h.gen_to_NL(), m.gen_to_NL()
+        s = ''
+        if hh:
+            s = hh
+        if hh and mm:
+            if hh.isnumeric() and mm.isnumeric():
+                s = hh + ' : ' + mm + ' PM'
+            s = hh + ' hours PM and ' + mm + ' minutes'
+        elif hh:
+            s = hh
+        elif mm:
+            s = mm + ' minutes '
+        if params and 'with_prep' in params:
+            s = 'at ' + s
+        return s
+
+    @classmethod
+    def gen_type_comparable(cls, inp_nm, out_type, org_type):
+        if org_type=='Int' and out_type in ['Int','Time']:
+            return True
+        return False
+
+    @classmethod
+    def can_gen_comp_func(cls, otyp=None, val=None, val_parent=None, inp_nm=None):
+        s = 'check func %s can gen %s to replace % as %s of %s' % \
+            (cls.__name__, otyp.__name__, val.typename(), inp_nm, val_parent.typename())
+        if environment_definitions.gen_mode == 'rand_noDB':
+            return True
+        return False
+
+    @classmethod
+    def do_gen_comp_func(cls, otyp=None, val=None, val_parent=None, inp_nm=None, last_step=False):
+        s = 'repl: %s gens %s to replace %s as %s of %s [last=%s]' % \
+            (cls.__name__, otyp.__name__, val.typename(), inp_nm, val_parent.typename(), last_step)
+        if environment_definitions.gen_mode == 'rand_noDB':
+            parents, _ = val.parent_nodes()
+            ptypes = [p.typename() for p in parents]
+            if 'NumberAM' in ptypes or 'NumberPM' in ptypes or 'HourMinuteAM' in ptypes or 'HourMinutePM' in ptypes:
+                return False, [], []
+            ctx = val.context
+            h = random.randint(6,9)
+            m = random.randint(3,6) * 5
+            t = 'HourMinutePm(hours=%d, minutes=%d)' % (h, m)
+            if inp_nm == 'hour' and val_parent.typename() in ['date', 'DateTime']:
+                t = ':hour(' + t + ')'
+            if inp_nm == 'hour' and val_parent.typename() in ['date', 'DateTime']:
+                t = ':minute(' + t + ')'
+            d, _ = Node.call_construct(t, ctx)
+            return d, d.topological_order(), []
+        return False, [], []
+
 
 class HourMinuteAm(Node):
     """
@@ -1334,6 +1794,58 @@ class HourMinuteAm(Node):
         minute = self.get_dat('minutes')
         d, e = self.call_construct_eval(time_sexp(hour, minute), self.context)
         self.set_result(d)
+
+    def gen_to_NL(self, params=None):
+        h, m = self.get_input_views(['hours', 'minutes'])
+        hh, mm = h.gen_to_NL(), m.gen_to_NL()
+        s = ''
+        if hh and mm:
+            if hh.isnumeric() and mm.isnumeric():
+                s = hh + ' : ' + mm + ' AM'
+            s = hh + ' hours AM and ' + mm + ' minutes'
+        elif hh:
+            s = hh
+        elif mm:
+            s = mm + ' minutes '
+        if params and 'with_prep' in params:
+            s = 'at ' + s
+        return s
+
+    @classmethod
+    def gen_type_comparable(cls, inp_nm, out_type, org_type):
+        if org_type=='Int' and out_type in ['Int','Time']:
+            return True
+        return False
+
+    @classmethod
+    def can_gen_comp_func(cls, otyp=None, val=None, val_parent=None, inp_nm=None):
+        s = 'check func %s can gen %s to replace % as %s of %s' % \
+            (cls.__name__, otyp.__name__, val.typename(), inp_nm, val_parent.typename())
+        if environment_definitions.gen_mode == 'rand_noDB':
+            return True
+        return False
+
+    @classmethod
+    def do_gen_comp_func(cls, otyp=None, val=None, val_parent=None, inp_nm=None, last_step=False):
+        s = 'repl: %s gens %s to replace %s as %s of %s [last=%s]' % \
+            (cls.__name__, otyp.__name__, val.typename(), inp_nm, val_parent.typename(), last_step)
+        if environment_definitions.gen_mode == 'rand_noDB':
+            parents, _ = val.parent_nodes()
+            ptypes = [p.typename() for p in parents]
+            if 'NumberAM' in ptypes or 'NumberPM' in ptypes or 'HourMinuteAM' in ptypes or 'HourMinutePM' in ptypes:
+                return False, [], []
+            ctx = val.context
+            h = random.randint(6,9)
+            m = random.randint(3,6) * 5
+            t = 'HourMinutePm(hours=%d, minutes=%d)' % (h, m)
+            if inp_nm == 'hour' and val_parent.typename() in ['date', 'DateTime']:
+                t = ':hour(' + t + ')'
+            if inp_nm == 'hour' and val_parent.typename() in ['date', 'DateTime']:
+                t = ':minute(' + t + ')'
+            d, _ = Node.call_construct(t, ctx)
+            nds = d.topological_order()
+            return d, nds, []
+        return False, [], []
 
 
 class ConvertTimeToAM(Node):
@@ -1531,6 +2043,13 @@ class toDays(Node):
         d, e = self.call_construct_eval('Period(day=%d)' % number, self.context)
         self.set_result(d)
 
+    def gen_to_NL(self, params=None):
+        w = self.dat
+        s = '%d day' % w
+        if w!=1:
+            s += 's'
+        return s
+
 
 class toWeeks(Node):
     """
@@ -1545,6 +2064,13 @@ class toWeeks(Node):
         number = self.get_dat(posname(1))
         d, e = self.call_construct_eval('Period(week=%d)' % number, self.context)
         self.set_result(d)
+
+    def gen_to_NL(self, params=None):
+        w = self.dat
+        s = '%d week' % w
+        if w!=1:
+            s += 's'
+        return s
 
 
 class toMonths(Node):
@@ -1561,6 +2087,13 @@ class toMonths(Node):
         d, e = self.call_construct_eval('Period(month=%d)' % number, self.context)
         self.set_result(d)
 
+    def gen_to_NL(self, params=None):
+        w = self.dat
+        s = '%d month' % w
+        if w!=1:
+            s += 's'
+        return s
+
 
 class toYears(Node):
     """
@@ -1575,6 +2108,13 @@ class toYears(Node):
         number = self.get_dat(posname(1))
         d, e = self.call_construct_eval('Period(year=%d)' % number, self.context)
         self.set_result(d)
+
+    def gen_to_NL(self, params=None):
+        w = self.dat
+        s = '%d year' % w
+        if w!=1:
+            s += 's'
+        return s
 
 
 class toHours(Node):
@@ -1591,6 +2131,13 @@ class toHours(Node):
         d, e = self.call_construct_eval('Period(hour=%d)' % number, self.context)
         self.set_result(d)
 
+    def gen_to_NL(self, params=None):
+        w = self.dat
+        s = '%d hour' % w
+        if w!=1:
+            s += 's'
+        return s
+
 
 class toMinutes(Node):
     """
@@ -1606,6 +2153,12 @@ class toMinutes(Node):
         d, e = self.call_construct_eval('Period(minute=%d)' % number, self.context)
         self.set_result(d)
 
+    def gen_to_NL(self, params=None):
+        w = self.dat
+        s = '%d minute' % w
+        if w!=1:
+            s += 's'
+        return s
 
 # TODO: do we also need classes for "toHoursMinutes" which converts two numbers to hours, minutes...?
 #  e.g if the user says - "the meeting should last 2h30m"
@@ -1661,6 +2214,27 @@ class Now(Node):
         s = datetime_sexp(year, month, day, hour, minute)
         d, e = self.call_construct_eval(s, self.context)
         self.set_result(d)
+
+    def gen_to_NL(self, params=None):
+        return 'now'
+
+    @classmethod
+    def can_gen_comp_func(cls, otyp=None, val=None, val_parent=None, inp_nm=None):
+        s = 'check func %s can gen %s to replace % as %s of %s' % \
+            (cls.__name__, otyp.__name__, val.typename(), inp_nm, val_parent.typename())
+        if environment_definitions.gen_mode == 'rand_noDB':
+            return True
+        return False
+
+    @classmethod
+    def do_gen_comp_func(cls, otyp=None, val=None, val_parent=None, inp_nm=None, last_step=False):
+        s = 'repl: %s gens %s to replace %s as %s of %s [last=%s]' % \
+            (cls.__name__, otyp.__name__, val.typename(), inp_nm, val_parent.typename(), last_step)
+        if environment_definitions.gen_mode == 'rand_noDB':
+            ctx = val.context
+            d, _ = Node.call_construct('Now()', ctx)
+            return d, [d], []
+        return False, [], []
 
 
 class ClosestDayOfWeek(Node):
@@ -1731,6 +2305,36 @@ class NextDOW(Node):
         if inp and inp.typename() == 'Str':
             self.wrap_input(posname(1), 'DayOfWeek(', do_eval=False)
         return self, None
+
+    def get_gen_type(self, nm):
+        return [DayOfWeek]
+
+    def gen_to_NL(self, params=None):
+        p = self.input_view(posname(1))
+        return p.gen_to_NL()
+
+    @classmethod
+    def can_gen_comp_func(cls, otyp=None, val=None, val_parent=None, inp_nm=None):
+        s = 'check func %s can gen %s to replace % as %s of %s' % (cls.__name__, otyp, val, inp_nm, val_parent)
+        if environment_definitions.gen_mode == 'rand_noDB':
+            return True
+        return False
+
+    @classmethod
+    def do_gen_comp_func(cls, otyp=None, val=None, val_parent=None, inp_nm=None, last_step=False):
+        s = 'repl: %s gens %s to replace %s as %s of %s [last=%s]' % \
+            (cls.__name__, otyp, val, inp_nm, val_parent, last_step)
+        if environment_definitions.gen_mode == 'rand_noDB':
+            ctx = val.context
+            inp = val
+            otyp = otyp.__name__ if isinstance(otyp, type) else type(otyp).__name__
+            val = val.__name__ if isinstance(val, type) else type(val).__name__
+            if environment_definitions.gen_mode == 'rand_noDB' and otyp == 'Date':
+                #day = random.choice(['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'])
+                day = random.choice(days_of_week_full[3:6])
+                d, _ = Node.call_construct('NextDOW(%s)' % day, ctx)
+                return d, [d, d.inputs[posname(1)]], []
+        return None, [], []
 
 
 class DateAtTimeWithDefaults(Node):
@@ -1821,6 +2425,78 @@ class MD(Node):
         g, _ = self.call_construct_eval(f"Date?(month={name_to_month(m.dat)}, day={d.dat})", self.context)
         self.set_result(g)
 
+    @classmethod
+    def can_gen_comp_func(cls, otyp=None, val=None, val_parent=None, inp_nm=None):
+        s = 'check func %s can gen %s to replace % as %s of %s' % (cls.__name__, otyp.__name__, val.typename(), inp_nm, val_parent.typename())
+        if environment_definitions.gen_mode == 'rand_noDB':
+            parents, _ = val.parent_nodes()
+            if 'MD' in [n.typename() for n in parents]:
+                return False
+            return True
+        return False
+
+    @classmethod
+    def do_gen_comp_func(cls, otyp=None, val=None, val_parent=None, inp_nm=None, last_step=False):
+        s = 'repl: %s gens %s to replace %s as %s of %s [last=%s]' % \
+            (cls.__name__, otyp.__name__, val.typename(), inp_nm, val_parent.typename(), last_step)
+        if environment_definitions.gen_mode == 'rand_noDB' and not last_step:
+            ctx = val.context  # fix
+            m = random.choice(monthname_full[3:6])
+            day = random.choice(range(10,15))
+            rm, rd = False, False
+            if not last_step:
+                if random.random() < 0.5:
+                    day = ':day(Date?())'
+                    rd = True
+                if random.random() < 0.5:
+                    m = ':month(Date?())'
+                    rm = True
+            d, _ = Node.call_construct('MD(month=%s, day=%s)' %(m, day), ctx)
+            e = []
+            if rd:
+                e += [d.get_ext_view('day.pos2')]
+            if rm:
+                e += [d.get_ext_view('month.pos2')]
+            # todo - we can further expand month / day
+            return d, [n for n in d.topological_order() if n not in e], e
+
+        return False, [], []
+
+    def gen_to_NL(self, params=None):
+        sm, sd = '', ''
+        m, d = self.get_input_views(['month', 'day'])  # lazy. we actually want the VIEW_INT, but assuming not evaluated
+        if d.typename() == 'Int':
+            e = d.dat
+            sd = str(e)
+            if e in [1,21,31]:
+                sd += ' st'
+            elif e in [2,22]:
+                sd += ' nd'
+            else:
+                sd += ' th'
+        if m.typename() == 'Str':
+            sm = m.dat
+        if sd and not sm:
+            sm = m.gen_to_NL(params)
+            if not sm.startswith('the month of'):
+                sm = 'the month of ' + sm
+            return 'the ' + sd + ' of ' + sm
+        elif sm and not sd:
+            sd = d.gen_to_NL(params)
+            if not sd.startswith('the day of'):
+                sd = 'the day of ' + sd
+            return sm + ', ' + sd
+        elif sd and sm:
+            return sm + ' ' + sd
+        else:
+            sm = m.gen_to_NL(params)
+            if not sm.startswith('the month of'):
+                sm = 'the month of ' + sm
+            sd = d.gen_to_NL(params)
+            if not sd.startswith('the day of'):
+                sd = 'the day of ' + sd
+            return sm + ' ' + sd
+
 
 class MDY(Node):
 
@@ -1834,6 +2510,18 @@ class MDY(Node):
         d, m, y = self.get_input_views(['day', 'month', 'year'])
         g, _ = self.call_construct_eval(f"Date?(month={name_to_month(m.dat)}, day={d.dat}, year={y.dat})", self.context)
         self.set_result(g)
+
+    @classmethod
+    def can_gen_comp_func(cls, otyp=None, val=None, val_parent=None, inp_nm=None):
+        s = 'check func %s can gen %s to replace % as %s of %s' % (cls.__name__, otyp.__name__, val.typename(), inp_nm, val_parent.typename())
+        if environment_definitions.gen_mode == 'rand_noDB':
+            return False
+        return False
+
+    @classmethod
+    def do_gen_comp_func(cls, otyp=None, val=None, val_parent=None, inp_nm=None, last_step=False):
+        s = 'repl: %s gens %s to replace %s as %s of %s [last=%s]' % (cls.__name__, otyp.__name__, val.typename(), inp_nm, val_parent.typename(), last_step)
+        return False, [], []
 
 
 def Pdates_to_daterange_sexp(s, e):

@@ -1,6 +1,7 @@
 from opendf.graph.nodes.node import Node
 from opendf.applications.smcalflow.nodes.functions import (
-    Message, Int, Bool, Str)
+    Int, Bool, Str)
+from opendf.utils.utils import Message
 from opendf.exceptions.df_exception import (
     DFException, InvalidValueException)
 from opendf.defs import posname
@@ -170,3 +171,14 @@ class Ball(Block):
     def __init__(self):
         super().__init__(type(self))
 
+
+# Exercise 2. a cylinder, with a dislike of yellow plastic instances
+class Cylinder(Block):
+    def __init__(self):
+        super().__init__(type(self))
+
+    def valid_input(self):
+        color = self.get_dat('color')
+        material = self.get_dat('material')
+        if color=='yellow' and material=='plastic':
+            raise DFException('A yellow plastic cylinder?  NL REALLY??', self)

@@ -1,11 +1,12 @@
 """
 The nodes implementation for the workshop.
 """
-from opendf.defs import Message, posname
+from opendf.defs import posname
 from opendf.exceptions.df_exception import DFException, InvalidValueException
 from opendf.graph.nodes.framework_objects import Bool, Int
 from opendf.graph.nodes.node import Node
 from opendf.applications.smcalflow.nodes.functions import Str
+from opendf.utils.utils import Message
 
 
 # to run:

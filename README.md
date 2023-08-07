@@ -1,6 +1,8 @@
 # OpenDF
 ### Open Pythonic Dataflow Dialogue Framework
 
+NEWLY ADDED - [Dataflow Dialogue Generation](https://arxiv.org/abs/2308.02323)
+
 NEWLY ADDED - [dataflow application development tutorial](tutorial/app_dev_tutorial.pdf)
 
 This package is an implementation of (and interpretation) of the dataflow paradigm for dialogue systems which has been introduced by Microsoft's Semantic Machines in the paper
@@ -57,7 +59,15 @@ requirements.txt file. These dependencies can be installed in your environment b
 pip install -r requirements.txt
 ```
 
-Be aware that `graphviz` may require the installation of additional packages on the hosting operating system.
+WARNING: `graphviz` requires the installation of an additional library on the hosting operating system.
+If you do not have it installed yet, follow the instructions on this [page](https://graphviz.org/download/), 
+in order to install it on your specific operating system.
+
+To run the generator, download spacy core model.
+
+```
+python -m spacy download en_core_web_md
+```
 
 ## Testing
 

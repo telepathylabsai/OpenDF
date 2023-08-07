@@ -1,6 +1,7 @@
 """
 Application specific function nodes.
 """
+
 from opendf.applications.smcalflow.exceptions.df_exception import EventConfirmationException, \
     BadEventDeletionException, WeatherInformationNotFoundException, AttendeeNotFoundException, EventNotFoundException, \
     PlaceNotFoundException, PlaceNotFoundForUserException
@@ -10,7 +11,7 @@ from opendf.applications.smcalflow.weather import time_filter_weather_dict, wtab
 from opendf.exceptions.df_exception import DFException, InvalidTypeException, IncompatibleInputException, \
     WrongSuggestionSelectionException, InvalidResultException
 from opendf.graph.node_factory import NodeFactory
-from opendf.utils.utils import comma_id_sexp, geo_distance
+from opendf.utils.utils import comma_id_sexp, geo_distance, Message
 from opendf.defs import posname, get_system_datetime
 from opendf.exceptions import parse_node_exception, re_raise_exc
 
@@ -765,6 +766,121 @@ class FindManager(Node):
             self.wrap_input(posname(1), 'Recipient?(', do_eval=False)  # Recipient.transform_graph will expand this further
         return self, None
 
+    @classmethod
+    def can_gen_comp_func(cls, otyp=None, val=None, val_parent=None, inp_nm=None):
+        if otyp:
+            otyp = otyp.__name__ if isinstance(otyp, type) else type(otyp).__name__
+            inp = val
+            if val:
+                val = val.__name__ if isinstance(val, type) else type(val).__name__
+                # if val in ['Str'] and otyp in ['Recipient'] and \
+                #        (not val_parent or val_parent.gen_type_comparable(inp_nm, otyp, val)):
+                if val_parent.gen_type_comparable(inp_nm, otyp, val):
+                    return True
+        return False
+
+    # create a node of type otyp, which should replace 'val' (which is the inp_nm input to val_parent)
+    # depending on the replacement mode (in context) -
+    #   - either random, or from DB
+    #   - if new created - insert into DB or not
+    # for now - assuming this is called only after can_gen_comp_func already returned True
+    @classmethod
+    def do_gen_comp_func(cls, otyp=None, val=None, val_parent=None, inp_nm=None, last_step=False):
+        ctx = val.context  # hacky (val may be a string)
+        inp = val
+        otyp = otyp.__name__ if isinstance(otyp, type) else type(otyp).__name__
+        val = val.__name__ if isinstance(val, type) else type(val).__name__
+        # for now - just cover the case where val is Str, otyp is Recipient, and we get a random value, without DB in/out
+        if environment_definitions.gen_mode == 'rand_noDB' and val=='Str' and otyp=='Recipient':
+            recp = PersonName.gen_get_rand_example(ctx, dislike=inp.dat)
+            nm = recp.dat
+            d, _ = Node.call_construct('FindManager(%s)'%nm, ctx)
+            return d, [d], []
+        return None, [], []
+
+    def gen_to_NL(self, params=None):
+        p = self.input_view(posname(1))
+        if p:
+            s = p.gen_to_NL(params)
+            if s:
+                #if random.random()<0.5:
+                return 'the manager of ' + s
+                # return s + "'s manager"  # should only be used if s is non nested, otherwise strange
+                #   e.g. the manager of the person who attended the meeting in room1 -->
+                #        the person who attended the meeting in room1's manager
+        return ''
+
+
+# Added for generation - not used in SMCalFlow
+class FindFriends(Node):
+    def __init__(self):
+        super().__init__(Recipient)
+        self.signature.add_sig(posname(1), [Recipient, PersonName, Str], True)
+        self.signature.set_multi_res(True)  # can return multiple objects
+
+    def exec(self, all_nodes=None, goals=None):
+        rcpt = self.input_view('pos1')
+        if not rcpt or rcpt.typename() != 'Recipient':
+            raise InvalidResultException("Recipient not found", self)
+        idx = rcpt.get_dat('id')
+        if not idx:
+            raise InvalidResultException("Error - Recipient has no id", self)
+        f_ids = storage.get_friends(idx)
+        if not f_ids:
+            raise InvalidResultException("Error - Could not find friends of #%d" % idx, self)
+        friends = [storage.get_recipient_graph(i, self.context) for i in f_ids]
+        if len(friends)==1:
+            d = friends[0]
+        else:
+            d = node_fact.make_agg(friends)
+        self.set_result(d)
+
+    def transform_graph(self, top):
+        if posname(1) in self.inputs and (
+                self.inputs[posname(1)].typename() == 'Str' or self.inputs[posname(1)].outypename() == 'Str'):
+            self.wrap_input(posname(1), 'Recipient?(', do_eval=False)
+        return self, None
+
+    @classmethod
+    def can_gen_comp_func(cls, otyp=None, val=None, val_parent=None, inp_nm=None):
+        if otyp:
+            otyp = otyp.__name__ if isinstance(otyp, type) else type(otyp).__name__
+            inp = val
+            if val:
+                val = val.__name__ if isinstance(val, type) else type(val).__name__
+                if val_parent.gen_type_comparable(inp_nm, otyp, val):
+                    return True
+        return False
+
+    # Note - for generation - assume for now that we're looking for ONE friend, not several
+    # create a node of type otyp, which should replace 'val' (which is the inp_nm input to val_parent)
+    # depending on the replacement mode (in context) -
+    #   - either random, or from DB
+    #   - if new created - insert into DB or not
+    # for now - assuming this is called only after can_gen_comp_func already returned True
+    @classmethod
+    def do_gen_comp_func(cls, otyp=None, val=None, val_parent=None, inp_nm=None, last_step=False):
+        ctx = val.context  # hacky (val may be a string)
+        inp = val
+        otyp = otyp.__name__ if isinstance(otyp, type) else type(otyp).__name__
+        val = val.__name__ if isinstance(val, type) else type(val).__name__
+        if environment_definitions.gen_mode == 'rand_noDB' and val=='Str' and otyp=='Recipient':
+            recp = PersonName.gen_get_rand_example(ctx, dislike=inp.dat)
+            nm = recp.dat
+            d, _ = Node.call_construct('singleton(FindFriends(%s))'%nm, ctx)
+            return d, [d], []
+        return None, [], []
+
+    def gen_to_NL(self, params=None):
+        p = self.input_view(posname(1))
+        if p:
+            s = p.gen_to_NL(params)
+            if s:
+                #if random.random()<0.5:
+                return 'the friend of ' + s
+                # return s + "'s friend"  # should only be used if s is non nested, otherwise strange
+        return ''
+
 
 class prefer_friends(Node):
     """
@@ -831,7 +947,7 @@ class prefer_friends(Node):
 # todo - this is a minimal implementation - needs to cover more cases
 class toRecipientConstr(Node):
     def __init__(self):
-        super().__init__(Event)
+        super().__init__(Recipient)
         self.signature.add_sig(posname(1), Node, True)
 
     def exec(self, all_nodes=None, goals=None):
@@ -860,7 +976,7 @@ class ModifyRecipientRequest(Node):
 
     # gets translated to a revise call
     def __init__(self):
-        super().__init__(Event)
+        super().__init__(Recipient)
         self.signature.add_sig(posname(1), Node, True)
 
     def valid_input(self):
@@ -890,7 +1006,7 @@ class FindRecipients(Node):
     """
 
     def __init__(self):
-        super().__init__(Event)
+        super().__init__(Recipient)
         self.signature.add_sig(posname(1), Node, True, alias='rcpconstraint')
         self.signature.add_sig('tmp', Node, ptags=['omit_dup'])  # tmp is used for debugging - to draw the pruned tree
         self.signature.set_multi_res(True)  # may return multiple objects as result
@@ -1329,6 +1445,16 @@ class FindEvents(Node):
             return False, ee
         return False, ee
 
+    def gen_to_NL(self, params=None):
+        pnm, par = self.get_parent()
+        s = ''
+        if not par:
+            s = 'find'
+        p = gen_event_constr_to_NL(self, 'the', params)
+        s += p
+        return s
+
+
 
 # ####################################################################################################
 # ############################################## create ##############################################
@@ -1425,6 +1551,68 @@ class CreateCommitEventWrapper(Node):
         self.set_result(storage.get_event_graph(dbev.identifier, self.context))
 
 
+# duplicate the skeleton of the target event request, but cut the values inside the modifiers
+#  it would keep logical operators around modifiers  (but would not allow logical operators INSIDE the modifier)
+# alternatively, we could have just cut base type input nodes - to be seen
+# example: Create_event(AND(with_attendee(X), starts_at(Y))) --> Create_event(AND(with_attendee(), starts_at()))
+#          and then the generator will replace the values inside the modifiers.
+def gen_curr_top_smcalflow(targ, ctx):
+    d = targ.duplicate_tree(targ, n_context=ctx)[-1]  # , summarize=['with_attendee'], do_on_dup=False)
+    environment_definitions.in_place_replacement = True
+    # if doing in place replacement - then we start from a full copy of the target and modify it in place
+    if not environment_definitions.in_place_replacement:
+        nodes = d.topological_order()
+        for n in nodes:
+            if n.is_modifier():
+                for i in n.inputs:
+                    n.disconnect_input(i)
+    ctx.add_goal(d)
+    return d
+
+
+# common func for describing event constraints - used by CreateEvent, DeleteEvent, ...
+def gen_event_constr_to_NL(nd, ev_art, params=None):
+    prms0 = []
+    pos = nd.input_view(posname(1))
+    mods = []
+    if pos:
+        mods = [n for n in pos.get_op_objects()]
+    mod_nms = [n.typename() for n in mods]
+    subj = 'event'
+    if 'has_subject' in mod_nms:
+        sbj = [n for n in mods if n.typename() == 'has_subject'][0]
+        subj = sbj.gen_to_NL(params=['with_nodef'])
+    if ev_art=='a' and subj[0] in 'AEIOUaeiou':
+        ev_art = 'an'
+    prms0.append('%s %s' % (ev_art, subj))
+
+    prms = []
+    if 'with_attendee' in mod_nms:
+        nds = [n for n in mods if n.typename() == 'with_attendee']
+        s = [n.gen_to_NL(params=['no_prep']) for n in nds]
+        prms.append('with ' + ' and '.join(s))
+
+    if 'starts_at' in mod_nms:
+        nds = [n for n in mods if n.typename() == 'starts_at']
+        s = [n.gen_to_NL(params=['with_prep']) for n in nds]
+        prms.append(', '.join(s))
+
+    if 'at_location' in mod_nms:
+        nds = [n for n in mods if n.typename() == 'at_location']
+        s = [n.gen_to_NL(params=['no_prep']) for n in nds]
+        prms.append('at ' + ', '.join(s))
+
+    if 'has_duration' in mod_nms:
+        nds = [n for n in mods if n.typename() == 'has_duration']
+        s = [n.gen_to_NL(params=['no_prep']) for n in nds]
+        prms.append('lasting ' + ', '.join(s))
+
+    if True:
+        random.shuffle(prms)
+
+    return ' '.join(prms0 + prms)
+
+
 class CreateEvent(Node):
     """
     Convenience function for creating an event: spawns two wrappers then gets removed.
@@ -1461,6 +1649,54 @@ class CreateEvent(Node):
                 n = parent  # this will remove self from transformed sexp
 
         return n, None
+
+    # duplicate - really necessary? we'll replace this anyway (?)
+    def gen_curr_top(self, curr_ctx):
+        return gen_curr_top_smcalflow(self, curr_ctx)
+
+    # add only self to mapped nodes - the user will make a CreateEvent request, with ALL the fields of the
+    #   target request
+    def match_gen_nodes(self, targ, node_map, by_val=False):
+        node_map[self] = targ
+        # for i in self.inputs:
+        #     if i in targ.inputs:
+        #         node_map = self.inputs[i].match_gen_nodes(targ.inputs[i], node_map, by_val=by_val)
+        return node_map
+
+    # generate user pexp request for creating an event, based on the target request
+    # replace the original target constraints by more complex computations
+    def gen_user(self, target, context, node_map, persona, tried=None):
+        if environment_definitions.in_place_replacement:
+            dup = context.gen_curr_top
+        else:
+            dup = target.duplicate_tree(target, n_context=context, do_on_dup=False)[-1]
+        c = dup.input_view(posname(1))  # look only under pos1 - ignore e.g. 'tmp' etc
+        prms = []
+        if c:
+            # todo - save latest duplicate of the tree without any incomplete nodes are added
+            #    - fall back to it if we fail to resolve all incomplete
+            ignore_objs, incomplete_objs = [], []  # collect nodes which we should not replace in subsequent steps
+            n = environment_definitions.gen_n_steps
+            if n<0:
+                n = random.randint(1,-n)
+            for i in range(n):
+                objs = c.gen_sel_rand_objects(ignore=ignore_objs, incomplete=incomplete_objs)
+                for o in objs:
+                    pnm, prt = o.get_parent()
+                    if prt:
+                        replaced, ig, incmp = prt.replace_inp_with_composition(pnm, last_step=i==n-1)
+                        ignore_objs.extend(ig)
+                        incomplete_objs.extend(incmp)
+                x=1
+        top = dup  # context.gen_curr_top
+        pexp = top.print_tree(None, with_id=False, with_pos=False)[0]
+        txt = top.gen_to_NL()
+        return pexp, txt, None, True
+
+    def gen_to_NL(self, params=None):
+        p = gen_event_constr_to_NL(self, 'a', params)
+        s = 'create ' + p
+        return s
 
 
 # ####################################################################################################

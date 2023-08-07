@@ -1,6 +1,7 @@
 from opendf.applications.multiwoz_2_2.nodes.multiwoz import *
 from opendf.applications.multiwoz_2_2.utils import *
 from opendf.graph.nodes.framework_functions import revise, duplicate_subgraph
+from opendf.utils.utils import Message
 
 if use_database:
     multiwoz_db = MultiWozSqlDB.get_instance()
@@ -8,6 +9,11 @@ else:
     multiwoz_db = MultiWOZDB.get_instance()
 node_fact = NodeFactory.get_instance()
 environment_definitions = EnvironmentDefinition.get_instance()
+
+
+map_police_slots = {
+    "police-name": "name=%s" if EXTRACT_SIMP else "name=LIKE(Department(%s))",
+}
 
 
 class Police(MultiWOZDomain):
@@ -341,54 +347,8 @@ class get_police_info(Node):
         return msg[0] if msg else Message('')
 
 
+
+
 def extract_find_police(utterance, slots, context, general=None):
-    extracted = []
-    has_req = any([i for i in slots if 'request' in i])
-    problems = set()
-    for name, value in slots.items():
-        if 'request-' in name:
-            continue
-        value = select_value(value)
-        if not name.startswith(POLICE_PREFIX):
-            problems.add(f"Slot {name} not mapped for find_police!")
-            continue
-
-        role = name[HOTEL_PREFIX_LENGTH:]
-        if value in SPECIAL_VALUES:
-            extracted.append(f"{role}={SPECIAL_VALUES[value]}")
-            continue
-
-        if context and value not in utterance:
-            references = get_refer_match(context, Node.collect_nodes(context.goals), context.goals,
-                                         role=role, params={'fallback_type':'SearchCompleted', 'role': role})
-            if references and references[0].dat == value:
-                extracted.append(f"{role}=refer(role={role})")
-                continue
-            # else:
-            # TODO: maybe log that the reference could not be found in the graph
-        if name == "police-name":
-            extracted.append(f"name={escape_string(value)}")
-        else:
-            problems.add(f"Slot {name} not mapped for find_police!")
-
-    extracted_req = []
-    if has_req:
-        for name, value in slots.items():
-            if 'request' in name:
-                value = select_value(value)
-                if not name.startswith(POLICE_PREFIX + 'request-'):
-                    problems.add(f"Slot {name} not mapped for find_hotel request!")
-                    continue
-
-                role = name[POLICE_PREFIX_LENGTH+len('request-'):]
-                if value in SPECIAL_VALUES:
-                    extracted_req.append(f"{role}={SPECIAL_VALUES[value]}")
-                    continue
-
-                if role in ['name', 'address', 'phone', 'postcode']:
-                    extracted_req.append(role)
-                # todo - add other fields and check not a bad field name
-
-    exps = get_extract_exps('Police', context, general, extracted, [], extracted_req)
-
-    return exps, problems
+    return extract_find_domain(utterance, slots, context, 'Police', map_police_slots,
+                               POLICE_PREFIX, [], ['name', 'address', 'phone', 'postcode'], general)

@@ -1,6 +1,9 @@
+import random
+
 from opendf.applications.multiwoz_2_2.nodes.multiwoz import *
 from opendf.applications.multiwoz_2_2.utils import *
 from opendf.graph.nodes.framework_functions import revise, duplicate_subgraph
+from opendf.utils.utils import Message
 
 if use_database:
     multiwoz_db = MultiWozSqlDB.get_instance()
@@ -9,9 +12,38 @@ else:
 node_fact = NodeFactory.get_instance()
 environment_definitions = EnvironmentDefinition.get_instance()
 
+map_restaurant_slots = {
+    "restaurant-food": "food=%s",
+    "restaurant-type": "type=%s",
+    "restaurant-area": "area=%s",
+    "restaurant-pricerange": "pricerange=%s",
+    "restaurant-address": "address=%s",
+    "restaurant-phone": "phone=%s",
+    "restaurant-postcode": "postcode=%s",
+    "restaurant-booktime": "booktime=%s",
+    "restaurant-bookpeople": "bookpeople=%s",
+    "restaurant-bookday": "bookday=%s",
+    "restaurant-name": "name=%s" if EXTRACT_SIMP else "name=LIKE(Name(%s))",
+    "restaurant-parking": "parking=%s",
+}
+
+map_restaurant_inputs = {
+    "food": 'serving %s food',
+    "type": 'of type %s',
+    "area": 'in the %s',
+    "pricerange": 'in the %s range',
+    "address": 'at %s',
+    "phone": 'phone number %s',
+    "postcode": 'post code %s',
+    "booktime": 'at %s',
+    "bookpeople": 'for %s people',
+    "bookday": 'on %s',
+    "name": 'called %s',
+    "parking": 'parking: %s',
+}
+
 
 class Restaurant(MultiWOZDomain):
-
     def __init__(self, typ=None):
         typ = typ if typ else type(self)
         super().__init__(typ)
@@ -25,6 +57,27 @@ class Restaurant(MultiWOZDomain):
         self.signature.add_sig('phone', Phone)
         self.signature.add_sig('postcode', Postcode)
 
+    @staticmethod
+    def gen_get_field_str_format(name, prms=None):
+        return gen_get_field_str_format(name, map_restaurant_inputs)
+
+    def gen_show_options(self):
+        return ['name', 'food', 'type', 'area', 'pricerange', 'address', 'phone', 'postcode']
+
+    @staticmethod
+    def gen_get_alternative_values(name, prms=None):
+        if name=='name':
+            return ['city stop', 'la cucina', 'el sombrero']
+        if name=='food':
+            return ['mexican', 'japanese', 'italian', 'french']
+        if name=='type':
+            return ['restaurant', 'bar', 'pub']
+        if name=='area':
+            return ['north', 'south', 'west', 'east', 'center']
+        if name=='pricerange':
+            return ['cheap', 'moderate', 'expensive']
+        return []
+
     def get_context_values(self, inform_values=None, req_fields=None):
         slot_values = {}
         for name in self.inputs:
@@ -33,39 +86,55 @@ class Restaurant(MultiWOZDomain):
 
         return slot_values
 
+    # def describe(self, params=None):
+    #     prms = []
+    #     address, area, food, post, name, pricerange, phone, typ = \
+    #         self.get_dats(['address', 'area', 'food', 'postcode', 'name', 'pricerange', 'phone', 'type'])
+    #     prms.append(name if name else 'the ' + type if type else 'the restaurant')
+    #     if food:
+    #         prms.append('serves %s food' % food)
+    #     if area:
+    #         prms.append('in the %s' % area)
+    #     if pricerange:
+    #         prms.append('%s price range' % pricerange)
+    #     if typ:
+    #         prms.append('is a %s' % typ)
+    #     if address:
+    #         prms.append('and is located at %s' % address)
+    #     return Message(', '.join(prms), objects=[self])
+
     def describe(self, params=None):
         prms = []
-        address, area, food, post, name, pricerange, phone, typ = \
-            self.get_dats(['address', 'area', 'food', 'postcode', 'name', 'pricerange', 'phone', 'type'])
+        name, typ = self.get_dats(['name', 'type'])
         prms.append(name if name else 'the ' + type if type else 'the restaurant')
-        if food:
-            prms.append('serves %s food' % food)
-        if area:
-            prms.append('in the %s' % area)
-        if pricerange:
-            prms.append('%s price range' % pricerange)
-        if typ:
-            prms.append('is a %s' % typ)
-        if address:
-            prms.append('and is located at %s' % address)
+        for i in ['food', 'area', 'pricerange', 'type', 'address']:
+            dt = self.get_dat(i)
+            if dt:
+                prms.append(map_restaurant_inputs[i] % dt)
         return Message(', '.join(prms), objects=[self])
+
+    # def getattr_yield_msg(self, attr, val=None, plural=None, params=None):
+    #     nm = self.get_dat('name')
+    #     msg = nm if nm else 'The restaurant'
+    #     if attr == 'food':
+    #         return Message(msg + ' serves %s.' % self.get_dat('food'))
+    #     if attr == 'type':
+    #         return Message(msg + ' as a %s.' % self.get_dat('type'))
+    #     if attr == 'phone':
+    #         return Message(msg + "'s phone number is  %s ." % self.get_dat('phone'))
+    #     if attr == 'pricerange':
+    #         return Message(msg + ' is %s .' % self.get_dat('pricerange'))
+    #     if attr == 'area':
+    #         return Message(msg + ' is in the %s .' % self.get_dat('area'))
+    #     if attr == 'postcode':
+    #         return Message(msg + "'s post code is  %s ." % self.get_dat('postcode'))
+    #     return Message('')
 
     def getattr_yield_msg(self, attr, val=None, plural=None, params=None):
         nm = self.get_dat('name')
         msg = nm if nm else 'The restaurant'
-        if attr == 'food':
-            return Message(msg + ' serves %s.' % self.get_dat('food'))
-        if attr == 'type':
-            return Message(msg + ' as a %s.' % self.get_dat('type'))
-        if attr=='phone':
-            return Message(msg + "'s phone number is  %s ." % self.get_dat('phone'))
-        if attr=='pricerange':
-            return Message(msg + ' is %s .' % self.get_dat('pricerange'))
-        if attr=='area':
-            return Message(msg + ' is in the %s .' % self.get_dat('area'))
-        if attr=='postcode':
-            return Message(msg + "'s post code is  %s ." % self.get_dat('postcode'))
-
+        if attr in ['food', 'type', 'phone', 'pricerange', 'area', 'postcode']:
+            return Message(msg + map_restaurant_inputs[attr] % self.get_dat(attr))
         return Message('')
 
     @staticmethod
@@ -133,6 +202,34 @@ class Restaurant(MultiWOZDomain):
     def collect_state(self):
         do_collect_state(self, 'restaurant')
 
+    # returns tuples: ('param_name=value', describing text, weight offset)
+    # (low weight -> lower prob to select)
+    def gen_field_opts(self, node_name, prms=None):
+        opts = []
+        add_field_opt(opts, self, 'name', -0.5)
+        add_field_opt(opts, self, 'area', 0)
+        add_field_opt(opts, self, 'food', 0)
+        add_field_opt(opts, self, 'type', -0.2)
+        add_field_opt(opts, self, 'pricerange', 0)
+        if prms and 'full' in prms:
+            add_field_opt(opts, self, 'phone', 0)
+            add_field_opt(opts, self, 'postcode', -0.2)
+            add_field_opt(opts, self, 'address', 0)
+        return opts
+
+    # replace slot value with a random (but valid) value for the given opt
+    @staticmethod
+    def get_alternative_opt_value(opt):
+        slot, txt = opt
+        if '=' in slot:
+            slot = slot.split('=')[0]
+        vals = Restaurant.gen_get_alternative_values(slot)
+        if vals:
+            val = random.choice(vals)
+            # return '%s=%s' % (slot, val), Restaurant.gen_get_field_str_format(slot) % val
+            return '%s=%s' % (slot, val), gen_get_field_str_format(slot, map_restaurant_inputs) % val
+        return opt
+
 
 def filter_restaurant_name_and_set_result(nd, results, filter_name=None):
     if filter_name:
@@ -151,6 +248,30 @@ class RestaurantBookInfo(Node):
         self.signature.add_sig('booktime', Book_time)  # , custom=True)
         self.signature.add_sig('bookpeople', Book_people)  # , custom=True)
 
+    def gen_show_options(self):
+        return ['bookday', 'booktime', 'bookpeople']
+
+    @staticmethod
+    def gen_get_field_str_format(name, prms=None):
+        return gen_get_field_str_format(name, map_restaurant_inputs, prms)
+        # if name=='bookday':
+        #     return 'on %s'
+        # if name=='booktime':
+        #     return 'at %s'
+        # if name=='bookpeople':
+        #     return 'for %s people'
+        # return ''
+
+    @staticmethod
+    def gen_get_alternative_values(name, prms=None):
+        if name=='bookday':
+            return ['sunday', 'monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday']
+        if name=='booktime':
+            return ['17:00', '18:00', '12:30', '13:00', '20:30']
+        if name=='bookpeople':
+            return ['1', '2', '3', '4']
+        return []
+
     def get_context_values(self, inform_values=None, req_fields=None):
         slot_values = {}
         for name in self.inputs:
@@ -165,6 +286,26 @@ class RestaurantBookInfo(Node):
 
     def collect_state(self):
         do_collect_state(self, 'restaurant', 'book')
+
+    def gen_field_opts(self, node_name, prms=None):
+        opts = []
+        add_field_opt(opts, self, 'bookday', 0)
+        add_field_opt(opts, self, 'booktime', 0)
+        add_field_opt(opts, self, 'bookpeople', 0)
+        return opts
+
+    # replace slot value with a random (but valid) value for the given opt
+    @staticmethod
+    def get_alternative_opt_value(opt):
+        slot, txt = opt
+        if '=' in slot:
+            slot = slot.split('=')[0]
+        vals = RestaurantBookInfo.gen_get_alternative_values(slot)
+        if vals:
+            val = random.choice(vals)
+            # return '%s=%s' % (slot, val), RestaurantBookInfo.gen_get_field_str_format(slot) % val
+            return '%s=%s' % (slot, val), gen_get_field_str_format(slot, map_restaurant_inputs) % val
+        return opt
 
 
 class BookRestaurantConfirmation(Node):
@@ -251,7 +392,14 @@ class BookRestaurant(Node):
                 raise OracleException(atext, self)
 
         msg = ''
-        if self.count_ok('mention_name'):
+        mention_name = self.count_ok('mention_name')
+        curr_name = self.get_ext_dat('restaurant.name')
+        # print(curr_name)
+        if self.dup_of:
+            prev_name = self.dup_of.get_ext_dat('restaurant.name')
+            if prev_name and curr_name!=prev_name:
+                mention_name=True
+        if mention_name:
             self.inc_count('mention_name')
             msg = 'OK, ' + restaurant.describe().text + '.  NL  '
         if restaurant.inp_equals('takesbookings', 'no'):
@@ -282,6 +430,95 @@ class BookRestaurant(Node):
         else:
             self.inputs['restaurant'].collect_state()
             self.inputs['book_info'].collect_state()
+
+    def get_opts(self):
+        opts = []
+        for i in ['restaurant', 'book_info']:
+            if i in self.inputs:
+                opts += self.input_view(i).gen_field_opts('BookRestaurant')
+        return opts
+
+    def add_slot_noise(self, opts, noise=0):
+        if noise>0:
+            opts = [o if random.random() > noise else
+                    RestaurantBookInfo.get_alternative_opt_value(Restaurant.get_alternative_opt_value(o)) for o in opts]
+        return opts
+
+    def gen_user(self, target, context, node_map, persona, tried=None):
+        # using the convention:
+        #    if calling for the first time (before the current BookRestaurant even exists), then
+        #    self is actually target, and target is given as None
+        tried = tried if tried else []
+        curr_exists = target is not None
+        targ = target if curr_exists else self
+        ctx = self.context
+        if EXTRACT_SIMP:
+            rest = self.input_view('restaurant')
+            # 1. we may ask a question about the restaurant
+            if curr_exists and (random.random()<persona.ask_incomplete or
+                                (random.random()<persona.ask_complete and rest and rest.typename()=='Restaurant')):
+                if rest and rest.typename()!='Restaurant':
+                    rest = None
+                slot = random.choice(['food', 'area', 'address', 'phone', 'postcode'])
+                txt = 'what is the %s of the restaurant?' % slot  # todo - make nicer
+                pexp = 'get_restaurant_info('
+                if rest:
+                    references = get_refer_match(ctx, Node.collect_nodes(ctx.goals), ctx.goals, pos1='Restaurant?()')
+                    rr = 'refer(Restaurant?())' if references and references[0]==rest else id_sexp(rest)
+                    pexp += 'restaurant=%s, ' % rr
+                pexp += slot + ')'
+                return pexp, txt, None, False
+            else:  # 2. otherwise - continue revising
+                objs = []
+                if curr_exists:  # self is in the current graph. try to find exception from prev turn
+                    es = self.context.get_prev_exceptions(ndtyps=['FindRestaurant', 'BookRestaurant'])
+                    objs = sum([e.objects for e in es], [])
+                opts = targ.get_opts()
+                copts = self.get_opts() if curr_exists else []
+                opts = [o for o in opts if o not in copts]   # do not repeat existing options
+                if opts:
+                    max_opts = min(3, len(opts))  # todo - if all opts already given...
+                    min_opts = 0 if not curr_exists else 1
+                    n = select_n_opts(min_opts, max_opts)
+                    sel_opts = []
+                    if objs:
+                        pref_opts = [(i,j, w) for k in objs for (i,j, w) in opts if i.startswith(k)]
+                        if pref_opts:
+                            if random.random()<persona.select_suggested:  # frequently - select only one of the suggested slots
+                                sel_opts = select_weighted_opt_choices(pref_opts, 1)  # [random.choice(pref_opts)]
+                    if not sel_opts:
+                        # random.shuffle(opts)
+                        # sel_opts = opts[:n]
+                        sel_opts = select_weighted_opt_choices(opts, n)
+                    sel_opts = self.add_slot_noise(sel_opts, noise=persona.slot_noise)
+                    if curr_exists:  # if we want to add refer even before task created, then we have to pass
+                                     # as input the current context (and give it as input to add_refer)
+                        sel_opts = add_refer(self, sel_opts, ['Restaurant', 'RestaurantBooking', 'revise_restaurant'], persona.add_refer)
+                    pexp = 'revise_restaurant(' + ','.join([i for (i,j) in sel_opts]) + ')'
+                    txt = "I'm looking for a restaurant "
+                    if len(sel_opts)>3:
+                        x=1
+                    if len(sel_opts)>0:
+                        txt += ', '.join([j for (i,j) in sel_opts])
+                    return pexp, txt, None, False
+        return '', '', None, False
+
+    # base function - generate text of user request for input inp given target node
+    def gen_user_text(self, target, inp):
+        # should always be customized!
+        v = target.input_view(inp)
+        if v:
+            return 'I want %s to be %s' % (inp, v.describe().text)
+        return 'grrr...'
+
+    def compare_task(self, other):
+        crest, cbook = self.get_input_views(['restaurant', 'book_info'])
+        orest, obook = other.get_input_views(['restaurant', 'book_info'])
+        if crest.typename() == 'Restaurant' and cbook.typename() == 'RestaurantBookInfo':
+            if orest.typename() == 'Restaurant' and obook.typename() == 'RestaurantBookInfo':
+                if crest.compare_graphs(orest) and cbook.compare_graphs(obook):
+                    return True
+        return False
 
 
 class FindRestaurant(Node):
@@ -380,7 +617,7 @@ class FindRestaurant(Node):
                     if dfields:
                         req_fields = {i:'?' for i in list(dfields.keys())[:2]}
 
-            msg = self.describe_inform_request(nresults0, inform_fields, req_fields)
+            msg, objs = self.describe_inform_request(nresults0, inform_fields, req_fields)
 
             #update_mwoz_state(restaurant, context, inform_fields, req_fields)  # use inform_fields to update state
             if nresults!=1 or rec_field in inform_fields:
@@ -394,7 +631,8 @@ class FindRestaurant(Node):
             raise ElementNotFoundException(
                 "I can not find a matching restaurant in the database. Maybe another area or price range?", self)
         if nresults > 1:
-            diffs = ' or '.join(list(inform_fields.keys())[:2])
+            objs = list(inform_fields.keys())[:2]
+            diffs = ' or '.join(objs)
             if diffs:
                 msg = 'Multiple (%d) matches found. Maybe select  %s?' % (nresults, diffs)
             else:
@@ -442,6 +680,7 @@ class FindRestaurant(Node):
 
     def describe_inform_request(self, nresults0, inform_fields, req_fields):
         prms = []
+        objs = []
         nm = inform_fields.get('name')
         if nm and 'rec_name' not in inform_fields and 'book_name' not in inform_fields:
             prms.append('I have found ' + and_values_str(nm))
@@ -454,42 +693,48 @@ class FindRestaurant(Node):
         elif nresults0 > 1 and 'book_name' not in inform_fields and 'name' not in inform_fields:
             prms.append('I see several (%d) matches' % nresults0)
 
-        typ = inform_fields.get('type')
-        if typ:
-            prms.append('of type ' + and_values_str(typ))
-
-        area = inform_fields.get('area')
-        if area:
-            prms.append('In the ' + and_values_str(area))
-
-        food = inform_fields.get('stars')
-        if food:
-            prms.append('They serve ' + and_values_str(food))
-        adr = inform_fields.get('address')
-        if adr:
-            adr = adr[0]
-            prms.append('It\'s located at ' + adr)
-        phone = inform_fields.get('phone')
-        if phone:
-            prms.append('The phone number is ' + phone[0])
-        postcode = inform_fields.get('postcode')
-        if postcode:
-            prms.append('The post code number is ' + postcode[0])
-        price = inform_fields.get('pricerange')
-        if price:
-            prms.append('The price is ' + price[0])
+        for i in ['type', 'area', 'food', 'address', 'phone', 'postcode', 'pricerange']:
+            dt = inform_fields.get(i)
+            if dt:
+                val = and_values_str(dt) if i in ['type', 'area', 'food'] else dt[0]
+                prms.append(map_restaurant_inputs[i] % val)
+        # typ = inform_fields.get('type')
+        # if typ:
+        #     prms.append('of type ' + and_values_str(typ))
+        #
+        # area = inform_fields.get('area')
+        # if area:
+        #     prms.append('In the ' + and_values_str(area))
+        #
+        # food = inform_fields.get('food')
+        # if food:
+        #     prms.append('They serve ' + and_values_str(food))
+        # adr = inform_fields.get('address')
+        # if adr:
+        #     adr = adr[0]
+        #     prms.append('It\'s located at ' + adr)
+        # phone = inform_fields.get('phone')
+        # if phone:
+        #     prms.append('The phone number is ' + phone[0])
+        # postcode = inform_fields.get('postcode')
+        # if postcode:
+        #     prms.append('The post code number is ' + postcode[0])
+        # price = inform_fields.get('pricerange')
+        # if price:
+        #     prms.append('The price is ' + price[0])
 
         if 'rec_name' in inform_fields:
             prms.append('I recommend %s' % inform_fields['rec_name'][0])
         if 'book_name' in inform_fields:
             prms.append('I Have booked %s' % inform_fields['book_name'][0])
         if len(req_fields) > 0:
+            objs = [i for i in req_fields]
             if nresults0 > 0:
-                prms.append('maybe select %s' % ' or '.join([i for i in req_fields]))
+                prms.append('maybe select %s' % ' or '.join(objs))
             else:
-                prms.append('Sorry, I can\'t find a match. Try a different %s' % ' or '.join([i for i in req_fields]))
+                prms.append('Sorry, I can\'t find a match. Try a different %s' % ' or '.join(objs))
         msg = ', '.join(prms)
-        return msg
+        return msg, objs
 
     def on_duplicate(self, dup_tree=False):
         super().on_duplicate(dup_tree=dup_tree)
@@ -528,7 +773,6 @@ class revise_restaurant(revise):
     # make it a subtype of revise, so we don't revise this call
     def __init__(self):
         super().__init__()
-        # for the hotel
         self.signature.add_sig('name', Name)
         self.signature.add_sig('food', Food)
         self.signature.add_sig('type', Type)
@@ -646,91 +890,9 @@ class get_restaurant_info(Node):
 ################################################################################################################
 
 
-# TODO: how do we treat multiple possible values? Check if any is in the input?
-#  Check if we can find any by refer?
 def extract_find_restaurant(utterance, slots, context, general=None):
-    extracted = []
-    extracted_book = []
-    problems = set()
-    has_req = any([i for i in slots if 'request' in i])
-    for name, value in slots.items():
-        if 'choice' in name:
-            continue
-        value = select_value(value)
-        if not name.startswith(RESTAURANT_PREFIX) or 'request' in name:
-            if 'request' not in name:
-                problems.add(f"Slot {name} not mapped for find_restaurant!")
-            continue
-
-        role = name[RESTAURANT_PREFIX_LENGTH:]
-        if value in SPECIAL_VALUES:
-            if role in {'booktime', 'bookpeople', 'bookday'}:
-                extracted_book.append(f"{role}={SPECIAL_VALUES[value]}")
-            else:
-                extracted.append(f"{role}={SPECIAL_VALUES[value]}")
-            continue
-
-        if context and value not in utterance:
-            references = get_refer_match(context, Node.collect_nodes(context.goals), context.goals,
-                                         role=role, params={'fallback_type':'SearchCompleted', 'role': role})
-            if references and references[0].dat == value:
-                if role in {'booktime', 'bookpeople', 'bookday'}:
-                    extracted_book.append(f"{role}=refer(role={role})")
-                else:
-                    extracted.append(f"{role}=refer(role={role})")
-                continue
-            # else:
-            # TODO: maybe log that the reference could not be found in the graph
-
-        if name == "restaurant-name":
-            if EXTRACT_SIMP:
-                extracted.append(f"name={escape_string(value)}")
-            else:
-                extracted.append(f"name=LIKE(Name({escape_string(value)}))")
-        elif name == "restaurant-food":
-            extracted.append(f"food={escape_string(value)}")
-        elif name == "restaurant-type":
-            extracted.append(f"type={escape_string(value)}")
-        elif name == "restaurant-area":
-            extracted.append(f"area={escape_string(value)}")
-        elif name == "restaurant-pricerange":
-            extracted.append(f"pricerange={escape_string(value)}")
-
-        elif name == "restaurant-address":
-            extracted.append(f"address={escape_string(value)}")
-        elif name == "restaurant-phone":
-            extracted.append(f"phone={escape_string(value)}")
-        elif name == "restaurant-postcode":
-            extracted.append(f"postcode={escape_string(value)}")
-
-        elif name == "restaurant-parking":
-            extracted.append(f"parking={escape_string(value)}")
-
-        elif name == "restaurant-booktime":
-            extracted_book.append(f"booktime={escape_string(value)}")
-        elif name == "restaurant-bookpeople":
-            extracted_book.append(f"bookpeople={escape_string(value)}")
-        elif name == "restaurant-bookday":
-            extracted_book.append(f"bookday={escape_string(value)}")
-        else:
-            problems.add(f"Slot {name} not mapped for find_restaurant!")
-
-    extracted_req = []
-    if has_req:
-        for name, value in slots.items():
-            if 'request' in name:
-                value = select_value(value)
-                if not name.startswith(RESTAURANT_PREFIX + 'request-'):
-                    problems.add(f"Slot {name} not mapped for find_restaurant request!")
-                    continue
-
-                role = name[RESTAURANT_PREFIX_LENGTH+len('request-'):]
-                if role in ['name', 'food', 'pricerange', 'type', 'area', 'address', 'phone', 'postcode']:
-                    #if not any([role+'=' in i for i in extracted]):
-                    extracted_req.append(role)
-                # todo - add other fields and check not a bad field name
-
-    exps = get_extract_exps('Restaurant', context, general, extracted, extracted_book, extracted_req)
-
-    return exps, problems
+    return extract_find_domain(utterance, slots, context, 'Restaurant', map_restaurant_slots,
+                               RESTAURANT_PREFIX, ['booktime', 'bookpeople', 'bookday'],
+                               ['name', 'food', 'pricerange', 'type', 'area', 'address', 'phone', 'postcode'],
+                               general)
 

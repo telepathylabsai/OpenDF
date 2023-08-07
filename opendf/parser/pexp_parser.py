@@ -26,6 +26,13 @@ SPACES_REGEX = re.compile("\\s+")
 
 TAG_CHAR = "^"
 
+NODE_WITH_UNORDERED_INPUTS = {
+    "AND",
+    "OR",
+    "SET",
+    "ANY",
+}
+
 
 def sort_key_name(key):
     name, _ = key
@@ -39,6 +46,27 @@ def sort_key_name_and_value(key):
     if name is None:
         name = ""
     return name, value
+
+
+def is_equal_ignoring_order(inputs_1, inputs_2):
+    """
+    Checks if two lists are equal, independent of the order.
+
+    :param inputs_1: first list of inputs
+    :type inputs_1: List
+    :param inputs_2: second list of inputs
+    :type inputs_2: List
+    :return: `True`, if the lists are equal, independent of the order; `False` otherwise
+    :rtype: bool
+    """
+    inputs = list(inputs_2)
+    try:
+        for element in inputs_1:
+            inputs.remove(element)
+    except ValueError:
+        return False
+
+    return not inputs
 
 
 def escape_string(string, quote_mark="\""):
@@ -204,8 +232,12 @@ class ASTNode:
         if self.inputs:
             if not other.inputs:
                 return False
-            if sorted(self.inputs, key=sort_key_name) != sorted(other.inputs, key=sort_key_name):
-                return False
+            if self.name in NODE_WITH_UNORDERED_INPUTS:
+                if not is_equal_ignoring_order(self.inputs, other.inputs):
+                    return False
+            else:
+                if sorted(self.inputs, key=sort_key_name) != sorted(other.inputs, key=sort_key_name):
+                    return False
         else:
             if other.inputs:
                 return False
@@ -285,8 +317,8 @@ class PExpLexer:
     t_NAME_VALUE_SEPARATOR = r"="
     t_TAG_CHAR = r"\^"
     t_SPECIAL_FEATURE = r"\<[^\<\>]+\>"
-    t_ASSIGN_NODE = r"\$"
     t_QUOTED_STRING = r"(\"(\\.|[^\"])*\"|\'(\\.|[^\'])*\')"
+    t_ASSIGN_NODE = r"\$"
 
     ignore_COMMENT = r'//[^\r\n]*'
     ignore_BLOCK_COMMENT = r"/\*([^\*]|\*[^/])*\*/"

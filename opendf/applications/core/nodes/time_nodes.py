@@ -16,8 +16,10 @@ from opendf.applications.core.partial_time import *
 from calendar import monthrange
 
 from opendf.utils.database_utils import get_database_handler
-from opendf.utils.utils import id_sexp, str_to_datetime
-from opendf.defs import get_system_date, posname, get_system_datetime, Message
+from opendf.utils.utils import id_sexp, str_to_datetime, Message
+from opendf.defs import get_system_date, posname, get_system_datetime, EnvironmentDefinition
+
+environment_definitions = EnvironmentDefinition.get_instance()
 
 TIME_NODE_NAMES = ['DateTime', 'Date', 'Time', 'DateRange', 'TimeRange', 'DateTimeRange']
 
@@ -26,7 +28,7 @@ period_components = ['year', 'month', 'week', 'day', 'hour', 'minute']
 monthname = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec']
 monthname_full = ['January', 'February', 'March', 'April', 'May', 'June',
                   'July', 'August', 'September', 'October', 'November', 'December']
-
+days_of_week_full = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday']
 
 HOLIDAYS = {
     (1, 1): "NewYearsDay",
@@ -353,6 +355,42 @@ class Time(Node):
     def func_GE(self, ref, op=None, mode=None):
         return self.func_EQ(ref, op=op) or self.func_GT(ref, op=op)
 
+    def gen_to_NL(self, params=None):
+        s = ''
+        h, m = self.get_dats(['hour', 'minute'])
+        if h is None:
+            if 'hour' in self.inputs:
+                s = self.input_view('hour').gen_to_NL(params)
+        elif h is not None and m is not None:
+            s = '%d : %d' % (h,m)
+        elif h is not None:
+            s = str(h)
+        if s:
+            if params and 'with_prep' in params:
+                s = 'at ' + s
+        return s
+
+    # @classmethod
+    # def can_gen_comp_prm(cls, otyp, curr_inpnm=None, val=None, val_parent=None, par_inpnm=None):
+    #     s = 'check prm: can %s of current %s gen %s to replace %s as %s of %s?' %\
+    #        (curr_inpnm, cls.__name__, otyp.__name__, val.typename(), par_inpnm, val_parent.typename())
+    #     if environment_definitions.gen_mode == 'rand_noDB':
+    #         return True
+    #     return False
+    #
+    # @classmethod
+    # def do_gen_comp_prm(cls, otyp, curr_inpnm=None, val=None, val_parent=None, par_inpnm=None, last_step=False):
+    #     s = 'repl prm:  %s of current %s gens %s to replace %s as %s of %s' %\
+    #        (curr_inpnm, cls.__name__, otyp.__name__, val.typename(), par_inpnm, val_parent.typename())
+    #     if environment_definitions.gen_mode == 'rand_noDB':
+    #         ctx = val.context  # fix
+    #         if otyp==DayOfWeek and curr_inpnm=='dow' and not last_step:
+    #             d, _ = Node.call_construct(':dow(DateTime())', ctx)
+    #             a = d.inputs['attr']
+    #             e = d.inputs[posname(2)]  # DateTime SHOULD be replaced
+    #             return d, [d,a], [e]
+    #     return None, [], []
+
 
 class DayOfWeek(Node):
     """
@@ -422,6 +460,9 @@ class Range(Node):
         return selection
 
 
+# todo - this is a bad definition - it's a mix between an object and a function!
+# if an object - then just have an input and a valid_input.
+# if a function - then the output type should be the object type!
 class Month(Node):
     def __init__(self):
         super().__init__(type(self))
@@ -442,7 +483,6 @@ class Month(Node):
         elif isinstance(m, str):
             g, _ = self.call_construct_eval('Int(%d)' % name_to_month(m), self.context)
             self.set_result(g)
-
 
 
 class Date(Node):
@@ -601,6 +641,57 @@ class Date(Node):
                 return Message(v, objects=['DT%'+v])
         return super(type(self), self).getattr_yield_msg(attr, val)
 
+    def gen_to_NL(self, params=None):
+        if self.result != self:
+            return self.result.gen_to_NL(params)
+        y,m,d = self.get_dats(['year', 'month', 'day'])
+        if not y and not m and not d:
+            return 'that date '
+        p = []
+        if y:
+            p.append(y.gen_to_NL(params))
+        if m:
+            p.append(d.gen_to_NL(params))
+        if d:
+            p.append(d.gen_to_NL(params))
+        s = '/ '.join(p)
+        return s
+
+    @classmethod
+    def gen_attr_to_NL(cls, atr, nd, params=None):
+        t = ''
+        if nd:
+            if atr=='dow':
+                r = nd.gen_to_NL(params)
+                if nd.res.typename() in ['Str', 'DayOfWeek']:
+                    return r
+                return 'the day of ' + r
+            s = nd.gen_to_NL()
+            t = 'the ' + atr + ' of ' + s
+        # depending on params - add some preposition / article...
+        return t
+
+    @classmethod
+    def can_gen_comp_prm(cls, otyp, curr_inpnm=None, val=None, val_parent=None, par_inpnm=None):
+        s = 'check prm: can %s of current %s gen %s to replace %s as %s of %s?' %\
+           (curr_inpnm, cls.__name__, otyp.__name__, val.typename(), par_inpnm, val_parent.typename())
+        if environment_definitions.gen_mode == 'rand_noDB':
+            return True
+        return False
+
+    @classmethod
+    def do_gen_comp_prm(cls, otyp, curr_inpnm=None, val=None, val_parent=None, par_inpnm=None, last_step=False):
+        s = 'repl prm:  %s of current %s gens %s to replace %s as %s of %s' %\
+           (curr_inpnm, cls.__name__, otyp.__name__, val.typename(), par_inpnm, val_parent.typename())
+        if environment_definitions.gen_mode == 'rand_noDB':
+            ctx = val.context  # fix
+            if otyp==DayOfWeek and curr_inpnm=='dow' and not last_step:
+                d, _ = Node.call_construct(':dow(DateTime())', ctx)
+                a = d.inputs['attr']
+                e = d.inputs[posname(2)]  # DateTime SHOULD be replaced
+                return d, [d,a], [e]
+        return None, [], []
+
 
 class DateTime(Node):
     """
@@ -708,7 +799,7 @@ class DateTime(Node):
         params = params if params else []
         yr, mn, dy, dw, hr, mt = self.get_datetime_values()
         dte = self.input_view('date')
-        s = dte.special_day() if dte else ''
+        s = dte.special_day() if dte and isinstance(dte, Date) else ''
         dw = dw + ' ' if dw is not None else ''
         if not s:
             y, m, d = todays_date()
@@ -733,6 +824,34 @@ class DateTime(Node):
                 s += ' at'
             s += ' %d:%s' % (hr, mt)
         return Message(s, objects=['DT%'+s])
+
+    def gen_to_NL(self, params=None):
+        params = params if params else []
+        p1 = [p for p in params if p!='with_prep']
+        d, t = self.get_input_views(['date', 'time'])
+        s = ''
+        ds = d.gen_to_NL(p1) if d else ''
+        if ds:
+            s = ds
+            if 'with_prep' in params and ds[0].isnumeric():
+                s = 'on ' + s
+        ts = t.gen_to_NL(params if not s else p1) if t else ''
+        s += ' ' + ts
+        return s
+
+    @classmethod
+    def gen_attr_to_NL(cls, atr, nd, params=None):
+        t = ''
+        if nd:
+            if atr=='dow':
+                r = nd.gen_to_NL(params)
+                if nd.res.typename() in ['Str', 'DayOfWeek']:
+                    return r
+                return 'the day of ' + r
+            s = nd.gen_to_NL()
+            t = 'the ' + atr + ' of ' + s
+        # depending on params - add some preposition / article...
+        return t
 
     # assuming simple object - ignoring qualifiers
     def get_datetime_values(self, with_wd=True):
@@ -828,6 +947,27 @@ class DateTime(Node):
         if fname == 'holiday':
             return is_holiday(obj.to_Pdatetime())
         return False
+
+    @classmethod
+    def can_gen_comp_prm(cls, otyp, curr_inpnm=None, val=None, val_parent=None, par_inpnm=None):
+        s = 'check prm: can %s of current %s gen %s to replace %s as %s of %s?' % \
+           (curr_inpnm, cls.__name__, otyp.__name__, val.typename(), par_inpnm, val_parent.typename())
+        if environment_definitions.gen_mode == 'rand_noDB':
+            return True
+        return False
+
+    @classmethod
+    def do_gen_comp_prm(cls, otyp, curr_inpnm=None, val=None, val_parent=None, par_inpnm=None, last_step=False):
+        s = 'repl prm:  %s of current %s gens %s to replace %s as %s of %s' %\
+           (curr_inpnm, cls.__name__, otyp.__name__, val.typename(), par_inpnm, val_parent.typename())
+        if environment_definitions.gen_mode == 'rand_noDB':
+            ctx = val.context  # fix
+            if otyp==DayOfWeek and curr_inpnm=='dow' and not last_step:
+                d, _ = Node.call_construct(':dow(DateTime())', ctx)
+                a = d.inputs['attr']
+                e = d.inputs[posname(2)]  # DateTime SHOULD be replaced
+                return d, [d,a], [e]
+        return None, [], []
 
 
 class DateTimeRange(Range):

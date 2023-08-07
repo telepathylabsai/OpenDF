@@ -20,7 +20,7 @@ from opendf.graph.nodes.framework_functions import revise
 from opendf.graph.nodes.framework_objects import Bool
 from opendf.graph.nodes.framework_operators import GTf
 from opendf.graph.nodes.node import Node
-from opendf.main import dialog, environment_definitions
+from opendf.main import OpenDFDialogue, environment_definitions
 from opendf.graph.dialog_context import DialogContext
 from opendf.utils.utils import get_subclasses
 
@@ -35,6 +35,7 @@ class TestMain(unittest.TestCase):
         nodes = list(filter(lambda x: 'opendf.applications.simplification' not in x.__module__, get_subclasses(Node)))
         fill_type_info(node_factory, nodes)
         cls.d_context = DialogContext()
+        cls.df_dialog = OpenDFDialogue()
         if use_database:
             populate_stub_database("opendf/applications/smcalflow/data_stub.json")
         else:
@@ -49,7 +50,8 @@ class TestMain(unittest.TestCase):
                 database.clear_database()
 
     def test_input_with_id_1(self):
-        graph, ex = dialog(1, dialogs, self.d_context, draw_graph=False)
+        p_expressions = dialogs[1]
+        graph, ex, _ = self.df_dialog.run_dialogue(p_expressions, self.d_context, draw_graph=False)
 
         # checking value
         value = graph.typename()
@@ -66,7 +68,8 @@ class TestMain(unittest.TestCase):
             f"Expected an confirmation exception with more than {expected_len} arguments, found {exception_len}")
 
     def test_input_with_id_2(self):
-        graph, ex = dialog(2, dialogs, self.d_context, draw_graph=False)
+        p_expressions = dialogs[2]
+        graph, ex, _ = self.df_dialog.run_dialogue(p_expressions, self.d_context, draw_graph=False)
 
         # checking value
         value = graph.typename()
@@ -88,7 +91,8 @@ class TestMain(unittest.TestCase):
             f"Expected an confirmation exception with more than {expected_len} arguments, found {exception_len}")
 
     def test_input_with_id_3(self):
-        graph, ex = dialog(3, dialogs, self.d_context, draw_graph=False)
+        p_expressions = dialogs[3]
+        graph, ex, _ = self.df_dialog.run_dialogue(p_expressions, self.d_context, draw_graph=False)
 
         # checking value
         value = graph.typename()
@@ -103,7 +107,8 @@ class TestMain(unittest.TestCase):
                         f"Expected an exception of type {exception_type.__name__}, found {ex[0].__class__.__name__}")
 
     def test_input_with_id_4(self):
-        graph, ex = dialog(4, dialogs, self.d_context, draw_graph=False)
+        p_expressions = dialogs[4]
+        graph, ex, _ = self.df_dialog.run_dialogue(p_expressions, self.d_context, draw_graph=False)
 
         # checking value
         value = graph.typename()
@@ -118,7 +123,8 @@ class TestMain(unittest.TestCase):
             f"Expected an confirmation exception with more than {expected_len} arguments, found {exception_len}")
 
     def test_input_with_id_5(self):
-        root, ex = dialog(5, dialogs, self.d_context, draw_graph=False)
+        p_expressions = dialogs[5]
+        root, ex, _ = self.df_dialog.run_dialogue(p_expressions, self.d_context, draw_graph=False)
 
         # checking value
         graph = root
@@ -134,43 +140,43 @@ class TestMain(unittest.TestCase):
         # checking exception
         events_len = len(root.res.inputs)
         expected_len = 5
-        self.assertEqual(events_len, expected_len, f"Expected {expected_len} arguments, found {events_len}")
+        self.assertEqual(expected_len, events_len, f"Expected {expected_len} arguments, found {events_len}")
 
     def test_input_with_id_6(self):
-        root, ex = dialog(6, dialogs, self.d_context, draw_graph=False)
+        p_expressions = dialogs[6]
+        graph, ex, _ = self.df_dialog.run_dialogue(p_expressions, self.d_context, draw_graph=False)
 
         # checking value
-        graph = root
         value = graph.typename()
         expected = FindEvents.__name__
         self.assertEqual(graph.typename(), expected, f"Expected {expected}, found {value}!")
 
         # checking exception
-        graph = root.res
+        graph = graph.res
         value = graph.typename()
         expected = Event.__name__
         self.assertEqual(value, expected, f"Expected {expected}, found {value}!")
 
     def test_input_with_id_7(self):
-        root, ex = dialog(7, dialogs, self.d_context, draw_graph=False)
+        p_expressions = dialogs[7]
+        graph, ex, _ = self.df_dialog.run_dialogue(p_expressions, self.d_context, draw_graph=False)
 
         # checking value
-        graph = root
         value = graph.typename()
         expected = WillSnow.__name__
         self.assertEqual(graph.typename(), expected, f"Expected {expected}, found {value}!")
 
         # checking exception
-        graph = root.res
+        graph = graph.res
         value = graph.typename()
         expected = Bool.__name__
         self.assertEqual(value, expected, f"Expected {expected}, found {value}!")
 
     def test_input_with_id_8(self):
-        root, ex = dialog(8, dialogs, self.d_context, draw_graph=False)
+        p_expressions = dialogs[8]
+        graph, ex, _ = self.df_dialog.run_dialogue(p_expressions, self.d_context, draw_graph=False)
 
         # checking value
-        graph = root
         value = graph.typename()
         expected = FindEvents.__name__
         self.assertEqual(graph.typename(), expected, f"Expected {expected}, found {value}!")
@@ -181,10 +187,10 @@ class TestMain(unittest.TestCase):
         self.assertEqual(value, expected, f"Expected {expected} event, found {value}!")
 
     def test_input_with_id_9(self):
-        root, ex = dialog(9, dialogs, self.d_context, draw_graph=False)
+        p_expressions = dialogs[9]
+        graph, ex, _ = self.df_dialog.run_dialogue(p_expressions, self.d_context, draw_graph=False)
 
         # checking value
-        graph = root
         value = graph.typename()
         expected = FindEvents.__name__
         self.assertEqual(graph.typename(), expected,
@@ -196,16 +202,16 @@ class TestMain(unittest.TestCase):
         self.assertEqual(value, expected, f"Expected {expected} event, found {value}!")
 
     def test_input_with_id_10(self):
-        root, ex = dialog(10, dialogs, self.d_context, draw_graph=False)
+        p_expressions = dialogs[10]
+        graph, ex, _ = self.df_dialog.run_dialogue(p_expressions, self.d_context, draw_graph=False)
 
         # checking value
-        graph = root
         value = graph.typename()
         expected = GTf.__name__
         self.assertEqual(graph.typename(), expected,
                          f"Expected {expected}, found {value}!")
 
-        graph = root.res
+        graph = graph.res
         value = graph.typename()
         expected = Bool.__name__
         self.assertEqual(value, expected, f"Expected {expected}, found {value}!")
@@ -215,10 +221,10 @@ class TestMain(unittest.TestCase):
         self.assertEqual(data, expected, f"Expected {expected}, found {value}!")
 
     def test_input_with_id_11(self):
-        root, ex = dialog(11, dialogs, self.d_context, draw_graph=False)
+        p_expressions = dialogs[11]
+        graph, ex, _ = self.df_dialog.run_dialogue(p_expressions, self.d_context, draw_graph=False)
 
         # checking value
-        graph = root
         value = graph.typename()
         expected = GTf.__name__
         self.assertEqual(graph.typename(), expected,

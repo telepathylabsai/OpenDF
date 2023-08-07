@@ -5,7 +5,7 @@ import logging
 import re
 
 from opendf.defs import VIEW, POS, MSG_YIELD, SUGG_LABEL, SUGG_MSG, SUGG_IMPL_AGR, is_pos, posname, \
-    posname_idx, EnvironmentDefinition, Message  # , NODE
+    posname_idx, EnvironmentDefinition  # , NODE
 from opendf.exceptions.df_exception import DFException, MissingValueException, \
     WrongSuggestionSelectionException, EmptyEntrySingletonException, IncompatibleInputException, \
     InvalidTypeException, MultipleEntriesSingletonException, NoReviseMatchException, ElementNotFoundException, \
@@ -15,7 +15,7 @@ from opendf.graph.node_factory import NodeFactory
 from opendf.graph.nodes.framework_objects import Str, Bool, Int
 from opendf.graph.nodes.framework_operators import Operator
 from opendf.graph.nodes.node import Node
-from opendf.utils.utils import get_type_and_clevel, comma_id_sexp, id_sexp, to_list
+from opendf.utils.utils import get_type_and_clevel, comma_id_sexp, id_sexp, to_list, Message
 from opendf.exceptions import re_raise_exc
 
 logger = logging.getLogger(__name__)
@@ -279,6 +279,17 @@ class refer(Node):
         if m.text:
             return Message('I could not find any ' + m.text, objects=m.objects)
         return Message('', objects=m.objects)
+
+    def infer_type(self, params=None):
+        if posname(1) in self.inputs:
+            return type(self.input_view(posname(1)))
+        return Node
+
+    def gen_to_NL(self, params=None):
+        if posname(1) in self.inputs:
+            p = self.input_view(posname(1))
+            return 'the ' + p.gen_to_NL(params)
+        return ''
 
 
 # ################################################################################################
@@ -923,6 +934,7 @@ class getattr(Node):
         super().__init__()  # dynamic out type
         self.signature.add_sig(posname(1), Str, True, alias='attr')
         self.signature.add_sig(posname(2), Node, True)
+        self.signature.set_multi_res(True)  # can return multiple objects
 
     def exec(self, all_nodes=None, goals=None):
         nm = self.get_dat(posname(1))
@@ -965,12 +977,39 @@ class getattr(Node):
         m2 = nd.getattr_yield_msg(attr, m1.text, params=params)
         return Message(m2.text, objects=m1.objects + m2.objects)
 
-    def transform_graph(self, top):
+    def transform_graph0(self, top):  # todo - remove '0'  (for simpler drawing at workshop only!)
         nd = self.input_view(posname(2))
         # add a 'singleton' wrapper around input nodes which may return multiple results
         if nd and nd.signature.multi_res == True:  # or maybe even just != False
             self.wrap_input(posname(2), 'singleton(', do_eval=False)
         return self, None
+
+    def get_gen_type(self, nm):
+        if nm==posname(2):
+            # atr = self.get_dat('attr')
+            nd = self.inputs[nm]
+            # typ = nd.signature[atr].type
+            typ = type(nd)
+            return typ
+        return None
+
+    def gen_to_NL(self, params=None):
+        atr = self.get_dat('attr')
+        nd = self.input_view(posname(2))
+        typ = nd.infer_type()
+        s = typ.gen_attr_to_NL(atr, nd, params)
+        return s
+
+    def infer_type(self, params=None):
+        atr = self.get_dat('attr')
+        nd = self.input_view(posname(2))
+        typ2 = nd.infer_type(params)
+        sig = node_fact.sample_nodes[typ2.__name__].signature
+        if atr in sig:
+            typ = to_list(sig[atr].type)[0]
+            return typ
+        return Node
+
 
 
 class filtering(Node):
@@ -1036,6 +1075,15 @@ class singleton(Node):
                 raise InvalidResultException('Requested index not in range - %d / %d' % (idx, mul), self)
             self.set_result(matches[idx - 1])
         else:
+            if mul>1:
+                # experimental - a place to have custom logic: for cases where semantics can resolve the ambiguity
+                #   e.g. asking for the manager of the person who attended a meeting,
+                #        and the participants were only the current user and another person, then implicitly we want
+                #        the other person's manager.
+                # the base implementation does nothing (typical case). we pass self in case graph context is needed
+                m2 = matches[0].heuristic_resolve_singleton(matches, self)
+                if len(m2)==1:  # if still more than one remains, don't change (might confuse index...)
+                    matches, mul = m2, 1
             if mul == 1:
                 self.set_result(matches[0])
             else:  # multiple objects
@@ -1045,6 +1093,31 @@ class singleton(Node):
                         matches[0].singleton_multi_error(matches), self, hints=[], suggestions=sg)
                 else:
                     raise MultipleEntriesSingletonException(matches[0].singleton_multi_error(matches), self)
+
+    def gen_to_NL(self, params=None):
+        p = self.input_view(posname(1))
+        if p:
+            return p.gen_to_NL(params)
+        return ''
+
+
+# if input is a set, return the "first" element in the tree, otherwise, return the input node
+class FirstElement(Node):
+    def __init__(self):
+        super().__init__()  # dynamic out type
+        self.signature.add_sig(posname(1), Node, True)
+        self.copy_in_type = posname(1)
+
+    def exec(self, all_nodes=None, goals=None):
+        res = self.input_view(posname(1))
+        obj = res.get_op_object() if res.typename() == 'SET' else res
+        self.set_result(obj)
+
+    def gen_to_NL(self, params=None):
+        p = self.input_view(posname(1))
+        if p:
+            return p.gen_to_NL(params)
+        return ''
 
 
 # currently unused
@@ -1455,13 +1528,14 @@ class Exists(Node):
         r = self.res.dat
         inp = self.input_view(posname(1))
         if r:
-            msg = inp.describe(params)
-            s, objs = msg.text, msg.objects
+            m = inp.describe(params)
+            s, objs = m.text, m.objects
             if s:
-                msg += ' NL ' + s
+                msg = 'Yes  NL ' + s
             objs += ['VAL#Yes']
         else:
-            s, objs = inp.yield_failed_msg(params)
+            m = inp.yield_failed_msg(params)
+            s, objs = m.text, m.objects
             objs += ['VAL#No']
             if s:
                 msg = 'No. ' + s
@@ -1821,3 +1895,70 @@ class restore_state(Node):
 class sys_mentioned(Node):
     def __init__(self):
         super().__init__()
+
+#################
+
+# mixing context.mem with P-exps - a recipe for trouble!
+# better not use this... things can get out of sync, as we need to replicate values from mem as nodes,
+# but then changing one does change the other...
+
+
+class set_ctx_mem(Node):
+    """
+    Sets context's shared memory. value should be a base type (not enforcing this yet!)
+    """
+
+    def __init__(self):
+        super().__init__()  # dynamic out type
+        self.signature.add_sig(posname(1), Str, True, alias='attr')
+        self.signature.add_sig(posname(2), Node, True, alias='val')
+        self.signature.add_sig('as_node', Bool)  # set mem value to be the node (if False - sets mem to the data)
+
+    def exec(self, all_nodes=None, goals=None):
+        nm = self.get_dat(posname(1))
+        val = self.input_view(posname(2))
+        val0 = val
+        as_node = self.inp_equals('as_node', True)
+        if not as_node:
+            val = val.dat
+        self.context.set_mem(nm, val)
+        self.set_result(val0)
+
+    def yield_msg(self, params=None):
+        nm = self.get_dat(posname(1))
+        val = self.input_view(posname(2))
+        msg = 'Set value of context[%s] to %s' %(nm, val.describe().text)
+        return Message(msg, objects=[val])
+
+
+class get_ctx_mem(Node):
+    """
+    Sets context's shared memory. value should be a base type (not enforcing this yet!)
+    """
+
+    def __init__(self):
+        super().__init__()  # dynamic out type
+        self.signature.add_sig(posname(1), Str, True, alias='attr')
+
+    def exec(self, all_nodes=None, goals=None):
+        nm = self.get_dat(posname(1))
+        if self.context.has_mem(nm):
+            val = self.context.get_mem(nm)
+            if not isinstance(val, Node):  # create new node with data, if val is not a node already
+                t = 'Int' if isinstance(val, int) else 'Float' if isinstance(val, float) else \
+                    'Str' if isinstance(val, str) else 'Bool'
+                if t=='Bool':
+                    val = True if val else False
+                d, e = self.call_construct('%s(%s)' %(t, val), self.context)
+                val = d
+            self.set_result(val)
+        else:
+            raise DFException('Error - Context memory[%s] is not defined' % nm)
+
+    def yield_msg(self, params=None):
+        nm = self.get_dat(posname(1))
+        val = self.res
+        msg = 'Context memory[%s] is %s' %(nm, val.describe().text)
+        return Message(msg, objects=[val])
+
+

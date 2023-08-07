@@ -1,6 +1,7 @@
 """
 Factory to create the nodes. It does not depend on Node.
 """
+from collections import defaultdict
 from opendf.exceptions.python_exception import UnknownNodeTypeException
 import re
 from opendf.defs import *
@@ -56,6 +57,12 @@ class NodeFactory:
         self.modifiers = []
         self.aggregators = []
         self.qualifiers = []
+        # for generator
+        self.gen_out = defaultdict(set)  # for each type - which nodes can generate this type (have this out type)
+                                         # X is in gen_out[Y] --> X can output Y
+        self.has_type_prm = defaultdict(set)  # for each node - find nodes which have this type as input
+                                              # save as (node, inp_name)
+                                              # (X, nm) is in has_type_prm[Y] --> X.inputs[nm] can be Y
 
     def create_node_from_type_name(self, d_context, name, register, tags=None):
         name, clevel = get_type_and_clevel(name)
@@ -157,6 +164,28 @@ class NodeFactory:
         self.modifiers = [i.__name__ for i in list(get_subclasses(self.node_types['Modifier']))]
         self.aggregators = [i.__name__ for i in list(get_subclasses(self.node_types['Aggregator']))]
         self.qualifiers = [i.__name__ for i in list(get_subclasses(self.node_types['Qualifier']))]
+
+    def init_gen(self):
+        # for generator - collect nodes which have outputs/inputs for each one of the node types
+        #
+        # gen_out[x] = [a,...] means that a is a nodes whose return type is x
+        #              (or one of the output types is x, in case of multiple out types)
+        #  e.g. gen_out[Date] includes Today()
+        #
+        # has_type_prm[x] = [(y,a), ...] means that y is a node whose input a has x as one of its allowed types
+        #  e.g. has_type_prm[Date] includes (DateTime, 'date')
+        for nm in self.sample_nodes:
+            n = self.sample_nodes[nm]
+            ts = n.out_type  # we may allow multiple out types (?)
+            for t in to_list(ts):
+                self.gen_out[t].add(type(n))
+            if n.is_object():
+                sg = n.signature
+                for i in sg:
+                    ts = to_list(sg[i].type)
+                    for t in ts:
+                        self.has_type_prm[t].add((type(n), i))
+        x=1
 
     # dump all nodes' signatures to a file
     def dump_node_types(self, pname, bname):

@@ -1,7 +1,6 @@
 """
 Application specific object nodes.
 """
-
 import re
 
 from opendf.applications.smcalflow.nodes.time_slot import *
@@ -13,7 +12,10 @@ from opendf.applications.smcalflow.exceptions.df_exception import ClashEventSugg
 from opendf.graph.nodes.framework_operators import LIKE
 from opendf.applications.smcalflow.nodes.event_factory import *
 from opendf.defs import posname
+from opendf.utils.utils import Message
+from opendf.graph.node_factory import NodeFactory
 
+node_fact = NodeFactory.get_instance()
 
 storage = StorageFactory.get_instance()
 environment_definitions = EnvironmentDefinition.get_instance()
@@ -313,6 +315,16 @@ class PersonName(Node):
     def generate_sql_where(self, selection, parent_id, **kwargs):
         return self.input_view(posname(1)).generate_sql_where(selection, parent_id, **kwargs)
 
+    @staticmethod
+    def gen_get_rand_example(ctx, like=None, dislike=None):
+        nm=None
+        while not nm:
+            nm = random.choice(['Dan', 'John', 'Adam', 'Jane', 'Jill'])
+            if dislike and (dislike.lower() in nm.lower() or nm.lower() in dislike.lower()):
+                nm = None
+        d, _ = Node.call_construct('PersonName(%s)'%nm, ctx)
+        return d
+
 
 class Recipient(Node):
     """
@@ -495,6 +507,25 @@ class Recipient(Node):
 
         return selection
 
+    # there is nothing custom here (anymore) - just use base method?
+    # @classmethod
+    # def make_composition(cls, val, val_parent=None, inp_nm=None, prms=None):
+    #     nd = None
+    #     outf, has_prm = cls.get_gen_comp_func_prm(val, val_parent, inp_nm)
+    #     if outf and has_prm:
+    #         if random.random() < 0.5:
+    #             outf = []
+    #         else:
+    #             has_prm = []
+    #     if outf: # there is a function to generate a cls (Recipient) from old_inp (Str)
+    #         f = random.choice(outf)
+    #         nd = f.do_gen_comp_func(cls, val, val_parent, inp_nm)
+    #     if has_prm:
+    #         p, curr_nm = random.choice(has_prm)
+    #         nd = p.do_gen_comp_prm(cls, curr_nm, val, val_parent, inp_nm)
+    #         x=1
+    #     return nd
+
 
 class Attendee(Node):
 
@@ -577,6 +608,57 @@ class Attendee(Node):
             if 0 < len(fr) < len(prs):
                 return fr
         return prs
+
+    # @classmethod
+    # def make_composition(cls, val, val_parent=None, inp_nm=None, prms=None):
+    #     outf, has_prm = cls.get_gen_comp_func_prm(val, val_parent, inp_nm)
+    #     # outf = node_fact.gen_out[Attendee]
+    #     # has_prm = node_fact.has_type_prm[Attendee]
+    #     x=1
+
+    @classmethod
+    def can_gen_comp_prm(cls, otyp, curr_inpnm=None, val=None, val_parent=None, par_inpnm=None):
+        if otyp==Recipient and curr_inpnm=='recipient':
+            return True
+        return False
+
+    @classmethod
+    def do_gen_comp_prm(cls, otyp, curr_inpnm=None, val=None, val_parent=None, par_inpnm=None, last_step=False):
+        ctx = val.context  # fix
+        if otyp==Recipient and curr_inpnm=='recipient' and not last_step:
+            s = val.dat if val and type(val)==Str else 'xx'
+            d, _ = Node.call_construct(':recipient(Attendee(recipient=Recipient(name=%s)))' % s, ctx)
+            a = d.inputs['attr']
+            b = d.inputs[posname(2)].inputs['recipient'].topological_order()
+            e = d.inputs[posname(2)]  # Attendee SHOULD be replaced
+            return d, [d,a]+b, [e]
+        return None, [], []
+
+    # @classmethod
+    # def can_gen_comp_prm(cls, otyp=None, ityp=None):
+    #     inp = ityp
+    #     ityp = ityp if isinstance(ityp, type) else type(ityp)
+    #
+    #     return False
+
+    @classmethod
+    def gen_attr_to_NL(cls, atr, nd, params=None):
+        t = ''
+        if nd:
+            if atr=='recipient':
+                return nd.gen_to_NL(params)
+            if atr=='response':
+                return 'the response of ' + nd.gen_to_NL(params)
+            s = nd.gen_to_NL()
+            t = 'the ' + atr + ' of ' + s
+        # depending on params - add some preposition / article...
+        return t
+
+    @staticmethod
+    def heuristic_resolve_singleton(matches, nd):
+        curr_id = storage.get_current_recipient_id()
+        m2 = [m for m in matches if m.get_ext_dat('recipient.id')!=curr_id]
+        return m2 if len(m2)==1 else matches
 
 
 # #################################################################################################
@@ -713,6 +795,12 @@ class Event(Node):
             objs += o
         return Message(s, objects=objs)
 
+    def gen_to_NL(self, params=None):
+        params = params if params else []
+        if len(self.inputs)==0:
+            return 'event'
+        return ''
+
     # check if this event is compatible with external data
     #  if this is a common pattern - we may want to add this as a base function
     # check that:
@@ -793,7 +881,6 @@ class Event(Node):
                             else:
                                 return Message('No, %s is not invited to the "%s".' % (pname, subj), objects=obj + ['VAL#No'])
         return Message('', objects=obj)
-
 
     def generate_sql_select(self):
         return select(
@@ -1082,6 +1169,99 @@ class Event(Node):
         nm = 'end' if mode=='end' else 'start'
         dt = self.get_ext_view('slot.'+nm)
         return dt.to_partialDateTime()
+
+    # is Event.inputs[curr_inpnm] of type otyp and can be used to create a replacement to input par_inpnm of val_parent
+    #   which has value val?
+    # e.g. can Event.inputs[attendees] of type Attendee be used to replace with_attendee.inputs[pos1]
+    #      which has the value 'john'
+    @classmethod
+    def can_gen_comp_prm(cls, otyp, curr_inpnm=None, val=None, val_parent=None, par_inpnm=None):
+        otyp = otyp.__name__ if isinstance(otyp, type) else type(otyp).__name__
+        inp = val
+        if val and val_parent and par_inpnm:
+            val = val.__name__ if isinstance(val, type) else type(val).__name__
+            if val_parent.gen_type_comparable(par_inpnm, otyp, val):
+                return True
+        return False
+
+    @classmethod
+    def do_gen_comp_prm(cls, otyp, curr_inpnm=None, val=None, val_parent=None, par_inpnm=None, last_step=False):
+        from opendf.applications.smcalflow.nodes.modifiers import gen_rand_event_constraints, Modifier
+        ctx = val.context  # hacky (val may be a string)
+        inp = val  # to be used when we want to match the orig value
+        otyp = otyp.__name__ if isinstance(otyp, type) else type(otyp).__name__
+        val = val.__name__ if isinstance(val, type) else type(val).__name__
+        smp = node_fact.sample_nodes[val]
+        val_otp = smp.out_type.__name__ if smp.is_inputless() else ''
+        # for now- just cover the case where val is Str, otyp is Recipient, and we get a random value, without DB in/out
+        if environment_definitions.gen_mode == 'rand_noDB' and curr_inpnm in ['start', 'end'] \
+                and otyp in ['Time', 'Date', 'DateTime'] \
+                and (val in ['Int', 'Time', 'Date', 'DateTime'] or
+                     (val_otp and val_otp in ['Int', 'Time', 'Date', 'DateTime'])):
+            constr = gen_rand_event_constraints(environment_definitions.max_n_ev_constrs,
+                                                avoid=val_parent.gen_get_all_tree_base_vals())
+            # s = ':%s(refer(Event?()))' % curr_inpnm
+            s = ':%s(FindEvents(%s))' % (curr_inpnm, constr)
+            # todo - use Event.gen_get_rand_example() instead of using refer(Event?())
+            if otyp=='Time':
+                s = ':time(%s)' % s
+            if otyp=='Date':
+                s = ':date(%s)' % s
+            d, _ = Node.call_construct(s, ctx)
+            ig = [n for n in d.topological_order() if (n.typename() in
+                  ['getattr', 'FindEvents'] or isinstance(n, Modifier)) and
+                  not (n.typename()=='Str' and n.outputs and n.noutputs[0][1].typename()=='getattr')]
+            return d, ig, []
+        if environment_definitions.gen_mode == 'rand_noDB' and curr_inpnm in ['location'] \
+                and val in ['Str'] and otyp in ['LocationKeyphrase']:
+            constr = gen_rand_event_constraints(environment_definitions.max_n_ev_constrs,
+                                                avoid=val_parent.gen_get_all_tree_base_vals())
+            # s = ':%s(refer(Event?()))' % curr_inpnm
+            s = ':%s(FindEvents(%s))' % (curr_inpnm, constr)
+            # todo - use Event.gen_get_rand_example() instead of using refer(Event?())
+            d, _ = Node.call_construct(s, ctx)
+            ig = [n for n in d.topological_order() if (n.typename() in
+                  ['getattr', 'FindEvents'] or isinstance(n, Modifier)) and
+                  not (n.typename()=='Str' and n.outputs and n.noutputs[0][1].typename()=='getattr')]
+            return d, ig, []
+        if environment_definitions.gen_mode == 'rand_noDB' and curr_inpnm in ['attendees'] and \
+                val in ['Attendee'] and otyp in ['Attendee']:
+            # s = 'FirstElement(:%s(refer(Event?())))' % curr_inpnm  # hack - added FirstElement to avoid error message on
+            #                                                        # execution, get rid of it? replace? ...
+            # we want to put a constraint on FindEvent - finally - we want this to be the one which executes correctly
+            #  but we also want to avoid trivial constraints
+            #  (like: create an event with dan --> create an event with the person which attended the event with dan)
+            #s = 'FirstElement(:%s(FindEvents()))' % curr_inpnm  # hack - added FirstElement to avoid error message on
+
+            constr = gen_rand_event_constraints(environment_definitions.max_n_ev_constrs,
+                                                avoid=val_parent.gen_get_all_tree_base_vals() )
+            s = ':%s(FindEvents(%s))' % (curr_inpnm, constr)  # hack - added FirstElement to avoid error message on
+            d, _ = Node.call_construct(s, ctx)
+            # keep FirstElement, getattr, getattr.pos1 ('attendees'), FindEvents, and the modifiers under FindEvents.
+            #     the values under the modifiers are allowed change in the next step (e.g. dan -> FindManager(john))
+            ig = [n for n in d.topological_order() if n.typename() in
+                  ['getattr', 'FirstElement', 'FindEvents'] or isinstance(n, Modifier)]  # hacky - not robust
+            return d, ig + [d.get_ext_view('pos1.pos1')], []
+        return None, [], []
+
+    @classmethod
+    def gen_attr_to_NL(cls, atr, nd, params=None):
+        t = ''
+        if nd:
+            if atr=='attendees':
+                return 'the person who attended ' + nd.gen_to_NL(params)
+            if atr=='start':
+                return 'starting of ' + nd.gen_to_NL(params)
+            if atr=='subject':
+                return nd.gen_to_NL(params)
+            if atr=='location':
+                return 'the location of ' + nd.gen_to_NL(params)
+            if atr=='duration':
+                return 'lasting ' + nd.gen_to_NL(params)
+            s = nd.gen_to_NL()
+            t = 'the ' + atr + ' of ' + s
+        # depending on params - add some preposition / article...
+        return t
 
 
 # convert multiple time formats to tree of Event constraints

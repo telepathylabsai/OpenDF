@@ -4,8 +4,71 @@
 dialogs = [
     # #0: scratch pad - use for testing expressions
     [
-        #'Cube(color=red, material=wood, size=big)',
+        # EX 1.
+        # 'Int(1)',
+        # 'Float(1.1)',
+        # 'Bool(True)',
+        # 'Str(cat)',
+        # 'Str("two cats")',   # use quotes if there are spaces, otherwise not needed
+        # 'material(plastic)',
+        # 'Cube(color=red)',
+        # 'Cube(size=small, color=blue, material=metal)',
 
+        # Ex 2.
+        #'Cylinder(color=yellow, material=plastic)'
+
+
+        # Ex 3.
+        # 'Cube(color=red, material=wood, size=big)',
+        # 'Cube(color=yellow, material=plastic, size=big)',
+        # 'Pyramid(color=blue, material=metal, size=small)',
+        # 'Ball(color=yellow, material=plastic, size=big)',
+
+        # 'refer(Ball?())',
+        # 'refer(Pyramid?(material=metal))',
+        # ':color(refer(Block?(material=wood)))',
+        # 'Yield(:color(refer(Block?(material=wood))))',
+        # 'Yield(size(refer(Block?(material=plastic), multi=True)))',
+        # 'Yield(Exists(refer(Cube?(color=yellow))))',
+
+
+        # Ex 4.
+        # 'refer(NOT(Cube?(material=plastic)), multi=True)',
+        # 'refer(AND(Block?(), NOT(Cube?(material=plastic))), multi=True)',
+        # 'refer(Cube?(material=NOT(Material(plastic))), multi=True)',  # note we have to explicitly use Material(plastic)
+        # 'refer(AND(OR(Block?(size=small), Block?(material=wood)), OR(Cube?(), Ball?())),multi=true)',
+        # 'refer(Block?(color=OR(Color(red), Color(blue))), multi=True)',
+
+        #'Mult(Add(1,2), Add(3,4))',
+        #'Power(2,3.0)',
+
+        'Board()',
+        # 'InitGrid()',
+        # 'ShowBoard()',
+
+        #'Yield(Ball(color=red))',
+        #'Material(plastic)',
+        #'Color(red)',
+        #'Cube3(color=red)',
+
+        # 'Yield(size(refer(Block?(material=plastic), multi=True)))',
+        # 'revise(old=Material?(), new=Material(wood))'
+
+        # 'Yield(EQf(size(refer(Block?(), multi=True)),3))',
+        # 'revise(old=Int?(), new=4)',
+
+        #'refer(Block?(color=red))',
+        #'refer(NOT(Cube?(material=plastic)), multi=True)',
+        #'refer(AND(Block?(), NOT(Cube?(material=plastic))), multi=True)',
+        #'Yield(Exists(refer(Block?(material=plastic), multi=True)))',
+        #
+        #
+
+        #'Yield(size(refer(Block?(material=plastic), multi=True)))',
+        #'revise(old=Material?(), new=Material(wood))'
+
+        # 'Yield(GTf(size(refer(Block?(material=plastic), multi=True)), 3))',
+        # 'revise(old=Int?(), new=1)',
      ],
 
     ############################## examples for blockWorld_V1 ###############################################
@@ -66,8 +129,8 @@ dialogs = [
     ],
     # #12 :
     [
-        'getattr(size, Ball(size=big, material=plastic, color=yellow))',
-        # ':size(Ball(size=big, material=plastic, color=yellow))'  # equivalent - shorthand notation
+        #'getattr(size, Ball(size=big, material=plastic, color=yellow))',
+        ':size(Ball(size=big, material=plastic, color=yellow))'  # equivalent - shorthand notation
     ],
     # #13 :
     [
@@ -75,7 +138,7 @@ dialogs = [
         'Cube(color=yellow, material=plastic, size=big)',
         'Pyramid(color=blue, material=metal, size=small)',
         'Ball(color=yellow, material=plastic, size=big)',
-        ':size(refer(Ball?()))'
+        'Yield(:size(refer(Ball?())))'
     ],
     # #14 :
     [
@@ -134,7 +197,7 @@ dialogs = [
         'Cube(color=yellow, material=plastic, size=big)',
         'Pyramid(color=blue, material=metal, size=small)',
         'Ball(color=yellow, material=plastic, size=big)',
-        'refer(Cube?(size=big))',
+        ':material(refer(Cube?(size=big)))',
         'revise(hasParam=color, new=Color(red), newMode=extend)',
     ],
 

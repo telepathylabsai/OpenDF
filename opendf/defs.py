@@ -17,7 +17,7 @@ logger = logging.getLogger(__name__)
 
 LOG_LEVELS = {
     'NOTSET': 0,
-    # 'DEBUG': 10,
+    'DEBUG': 10,
     'INFO': 20,
     'WARNING': 30,
     'ERROR': 40,
@@ -54,26 +54,6 @@ def config_log(level='INFO'):
         level=level,
         handlers=[logger_out, logger_err]
     )
-
-
-class Message:
-    def __init__(self, text, node=None, objects=None, turn=None):
-        self.text = text
-        self.node = node
-        self.objects = objects if objects else []
-        self.turn = turn
-
-    def updated_message(self, text=None, node=None, objects=None, turn=None):
-        m = Message(self.text, self.node, self.objects, self.turn)
-        if text is not None:
-            m.text = text
-        if node is not None:
-            m.node = node
-        if objects is not None:
-            m.objects = objects
-        if turn is not None:
-            m.turn = turn
-        return m
 
 
 class EnvironmentDefinition:
@@ -175,6 +155,13 @@ class EnvironmentDefinition:
         self.populating_db = False  # True only when running populate_db
         self.agent_oracle = False  # True when running dialogs with the agent's responses (e.g. multiwoz dataset)
         self.oracle_only = False  # when using agent_oracle - if False then mix node logic with oracle info
+
+        # for generation
+        self.do_comp_gen = True
+        self.in_place_replacement = True
+        self.gen_mode = 'rand_noDB'
+        self.max_n_ev_constrs = 2
+        self.gen_n_steps = 3
 
     def _update_values_from_env(self):
         arguments = {}

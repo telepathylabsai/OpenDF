@@ -1,6 +1,7 @@
 """
 Application specific modifier nodes.
 """
+import random
 
 from opendf.applications.smcalflow.nodes.objects import *
 from opendf.applications.smcalflow.domain import *
@@ -47,6 +48,58 @@ from opendf.graph.transform_graph import do_transform_graph
 from opendf.defs import is_pos, posname
 
 
+# generate one random event constraint- not trying to match any specific value (that would come later (sep func))
+# we may want to control this function - e.g. avoid specific fields (/values?)
+# returns a modifier pexp.
+# if allow_incomplete - resulting pexp can include expressions requiring further replacement
+def gen_rand_event_constr(allow_incomplete=True, avoid=None):
+    md = random.choice(['has_subject', 'with_attendee', 'starts_at', 'at_location', 'has_duration'])  # add the rest
+    if md=='with_attendee':
+        return with_attendee.gen_rand_constr(allow_incomplete, avoid)
+    if md=='starts_at':
+        return starts_at.gen_rand_constr(allow_incomplete, avoid)
+    if md=='at_location':
+        return at_location.gen_rand_constr(allow_incomplete, avoid)
+    if md=='has_subject':
+        return has_subject.gen_rand_constr(allow_incomplete, avoid)
+    if md=='has_duration':
+        return has_duration.gen_rand_constr(allow_incomplete, avoid)
+    # if md=='':
+    #     return  .gen_rand_constr(allow_incomplete, avoid)
+    return ''
+
+
+def gen_rand_event_constraints(max_n=2, allow_incomplete=True, avoid=None):
+    n = random.randint(1,max_n)
+    cs = []
+    has_loc, has_dur, has_subj = False, False, False
+    for i in range(n):
+        c = ''
+        while not c:
+            c = gen_rand_event_constr(allow_incomplete, avoid)
+            if 'at_location' in c:  # don't allow to have two at_location constraints
+                if has_loc:
+                    c = ''
+                has_loc = True
+            if 'has_duration' in c:  # don't allow to have two has_duration constraints
+                if has_dur:
+                    c = ''
+                has_dur = True
+            if 'has_subject' in c:  # don't allow to have two has_duration constraints
+                if has_subj:
+                    c = ''
+                has_subj = True
+        cs.append(c)
+
+    if not has_subj:  # avoid just saying "the event"
+        if random.random()<0.5:
+            cs.append(has_subject.gen_rand_constr(allow_incomplete, avoid))
+
+    if len(cs) == 1:
+        return cs[0]
+    return 'AND(%s)' % ', '.join(cs)
+
+
 class at_location(Modifier):
     def __init__(self):
         super().__init__(Event)
@@ -82,12 +135,46 @@ class at_location(Modifier):
                 self.wrap_input(posname(1), pref + s, do_eval=evl)
 
     def exec(self, all_nodes=None, goals=None):
-        self.do_trans(evl=True)
-        self.set_result(self.input_view(posname(1)))
+        if not self.context.no_trans:
+            self.do_trans(evl=True)
+            self.set_result(self.input_view(posname(1)))
 
     def transform_graph(self, top):
-        self.do_trans()
+        if not self.context.no_trans:
+            self.do_trans()
         return self, None
+
+    def get_gen_type(self, nm):
+        return [LocationKeyphrase]
+
+    @classmethod
+    def gen_type_comparable(cls, inp_nm, out_type, org_type):
+        if inp_nm==posname(1) and org_type in ['Str', 'LocationKeyphrase'] and\
+                out_type in ['Str', 'LocationKeyphrase']:
+            return True
+        return False
+
+    def gen_to_NL(self, params=None):
+        p = self.input_view(posname(1))
+        s = p.gen_to_NL()
+        if 'no_prep' not in params:
+            s = 'at ' + s
+        return s
+
+    @staticmethod
+    def gen_rand_constr(allow_incomplete=None, avoid=None):
+        avoid = avoid if avoid else []
+        v = ''
+        i=0
+        while not v:
+            # v = random.choice(['room1', 'room2', 'hall A', 'my house', 'La Cucina', 'zurich HB'])
+            v = random.choice(['room1',  'my house', 'zurich HB'])
+            i+=1
+            if i<20:
+                for a in avoid:
+                    if isinstance(a, str) and (a.lower() in v.lower() or v.lower() in a.lower()):
+                        v = ''
+        return 'at_location(%s)' % v
 
 
 class avoid_location(Modifier):
@@ -168,12 +255,45 @@ class with_attendee(Modifier):
             self.wrap_input(posname(1), 'Event?(attendees=', do_eval=evl)
 
     def exec(self, all_nodes=None, goals=None):
-        self.do_trans(evl=True)
-        self.set_result(self.input_view(posname(1)))
+        if not self.context.no_trans:
+            self.do_trans(evl=True)
+            self.set_result(self.input_view(posname(1)))
 
     def transform_graph(self, top):
-        self.do_trans()
+        if not self.context.no_trans:
+            self.do_trans()
         return self, None
+
+    def get_gen_type(self, nm=None):
+        return [Recipient]
+
+    @classmethod
+    def gen_type_comparable(cls, inp_nm, out_type, org_type):
+        if inp_nm==posname(1) and org_type in ['Str', 'Recipient', 'Attendee'] and\
+                out_type in ['Str', 'Recipient', 'Attendee']:
+            return True
+        return False
+
+    def gen_to_NL(self, params=None):
+        p = self.input_view(posname(1))
+        s = p.gen_to_NL()
+        if 'no_prep' not in params:
+            s = 'with ' + s
+        return s
+
+    @staticmethod
+    def gen_rand_constr(allow_incomplete=None, avoid=None):
+        avoid = avoid if avoid else []
+        v = ''
+        i=0
+        while not v:
+            i+=1
+            v = random.choice(['Dan', 'John', 'Jane'])  # , 'Jill'
+            if i<20:
+                for a in avoid:
+                    if isinstance(a, str) and (a.lower() in v.lower() or v.lower() in a.lower()):
+                        v = ''
+        return 'with_attendee(%s)' % v
 
 
 class avoid_attendee(Modifier):
@@ -288,12 +408,67 @@ class starts_at(Modifier):
             self.wrap_input(posname(1), 'ToEventCTree(EventToTimeInput(', do_eval=evl)
 
     def exec(self, all_nodes=None, goals=None):
-        self.do_trans(evl=True)
-        self.set_result(self.input_view(posname(1)))
+        if not self.context.no_trans:
+            self.do_trans(evl=True)
+            self.set_result(self.input_view(posname(1)))
 
     def transform_graph(self, top):
-        self.do_trans()
+        if not self.context.no_trans:
+            self.do_trans()
         return self, None
+
+    def get_gen_type(self, nm):
+        nd = self.input_view(nm)
+        if nd:
+            ts = to_list(nd.out_type)
+            if len(ts)==1:
+                if ts[0] in [DateTime, Date, Time, DateRange, TimeRange, DateTimeRange]:
+                    return ts
+        return [DateTime, Date, Time, DateRange, TimeRange, DateTimeRange]
+
+    @classmethod
+    def gen_type_comparable(cls, inp_nm, out_type, org_type):
+        if inp_nm==posname(1) and out_type in ['DateTime', 'Date', 'Time']:
+            if org_type in ['DateTime', 'Date', 'Time', 'TimeRange', 'DateRange', 'DateTimeRange']:
+                return True
+            smp = node_fact.sample_nodes[org_type]
+            if smp.is_inputless() and smp.out_type.__name__ in ['DateTime', 'Date', 'Time', 'TimeRange', 'DateRange', 'DateTimeRange']:
+                return True
+        return False
+
+    def gen_to_NL(self, params=None):
+        p = self.input_view(posname(1))
+        if not params or 'no_prep' not in params:
+            params = ['with_prep']
+        s = p.gen_to_NL(params)
+        #if 'no_prep' not in params:
+        #    s = 'at ' + s
+        return s
+
+    @staticmethod
+    def gen_rand_constr(allow_incomplete=None, avoid=None):
+        avoid = avoid if avoid else []
+        v = ''
+        i=0
+        # vv = ['NumberAM(%d)' % random.randint(1,12), 'NumberPM(%d)' % random.randint(1,12), 'Today()', 'Tomorrow()',
+        #       'NextDOW(%s)' % random.choice(days_of_week_full),
+        #       'DateTime(date=Tomorrow(), time=Time(hour=%d, minute=%d))' %
+        #       (random.randint(0,24), 5*random.randint(1,12))]
+        vv = ['NumberAM(%d)' % random.randint(7,10),  'Today()',
+              'NextDOW(%s)' % random.choice(days_of_week_full[1:3]),
+              'DateTime(date=Tomorrow(), time=Time(hour=%d, minute=%d))' %
+              (random.randint(7,10), 5*random.randint(3,6)),
+              'Evening()',  # TimeRange
+              'NextWeekend()',  # DateRange
+              ]
+        while not v:
+            v = random.choice(vv)
+            i+=1
+            if i<20:
+                for a in avoid:
+                    if str(a).lower() in v.lower() or v.lower() in str(a).lower():
+                        v = ''
+        return 'starts_at(%s)' % v
 
 
 class avoid_start(Modifier):
@@ -641,12 +816,38 @@ class has_subject(Modifier):
                 self.wrap_input(posname(1), pref, do_eval=evl)
 
     def exec(self, all_nodes=None, goals=None):
-        self.do_trans(evl=True)
-        self.set_result(self.input_view(posname(1)))
+        if not self.context.no_trans:
+            self.do_trans(evl=True)
+            self.set_result(self.input_view(posname(1)))
 
     def transform_graph(self, top):
-        self.do_trans()
+        if not self.context.no_trans:
+            self.do_trans()
         return self, None
+
+    @staticmethod
+    def gen_rand_constr(allow_incomplete=None, avoid=None):
+        avoid = avoid if avoid else []
+        v = ''
+        i = 0
+        while not v:
+            v = random.choice(['meeting', 'get together', 'celebration'])  #  'staff meeting',  'toast',
+            i += 1
+            if i<20:
+                for a in avoid:
+                    if isinstance(a, str) and (a.lower() in v.lower() or v.lower() in a.lower()):
+                        v = ''
+        return 'has_subject(%s)' % v
+
+    def gen_to_NL(self, params=None):
+        p = self.input_view(posname(1))
+        # if not params or 'no_prep' not in params:
+        #     params = ['with_prep']
+        s = p.gen_to_NL(params)
+        #if 'no_prep' not in params:
+        #    s = 'at ' + s
+        return s
+
 
 
 class avoid_subject(Modifier):
@@ -741,12 +942,58 @@ class has_duration(Modifier):
             self.wrap_input(posname(1), pref1, do_eval=evl)
 
     def exec(self, all_nodes=None, goals=None):
-        self.do_trans(evl=True)
-        self.set_result(self.input_view(posname(1)))
+        if not self.context.no_trans:
+            self.do_trans(evl=True)
+            self.set_result(self.input_view(posname(1)))
 
     def transform_graph(self, top):
-        self.do_trans()
+        if not self.context.no_trans:
+            self.do_trans()
         return self, None
+
+    def get_gen_type(self, nm):
+        return [Period]
+
+    @classmethod
+    def gen_type_comparable(cls, inp_nm, out_type, org_type):
+        if inp_nm==posname(1) and out_type in ['Period']:
+            if org_type in ['Period']:
+                return True
+            smp = node_fact.sample_nodes[org_type]
+            if smp.is_inputless() and smp.out_type.__name__ in ['Period']:
+                return True
+        return False
+
+    def gen_to_NL(self, params=None):
+        p = self.input_view(posname(1))
+        if not params or 'no_prep' not in params:
+            params = ['with_prep']
+        s = p.gen_to_NL(params)
+        #if 'no_prep' not in params:
+        #    s = 'at ' + s
+        return s
+
+    @staticmethod
+    def gen_rand_constr(allow_incomplete=None, avoid=None):
+        avoid = avoid if avoid else []
+        v = ''
+        i=0
+        # vv = ['toHours(%d)' % random.randint(1,10), 'toMinutes(%d)' % (5*random.randint(1,10)),
+        #       'toDays(%d)' % random.randint(1,10),
+        #       'toWeeks(%d)' % random.randint(1,10), 'toMonths(%d)' % random.randint(1,10),
+        #       'toYears(%d)' % random.randint(1,10)]
+        vv = ['toHours(%d)' % random.randint(1,3), 'toMinutes(%d)' % (5*random.randint(2,6)),
+              'toDays(%d)' % random.randint(2,4),
+              'toWeeks(%d)' % random.randint(1,3), 'toMonths(%d)' % random.randint(1,3),
+              'toYears(%d)' % random.randint(1,3)]
+        while not v:
+            v = random.choice(vv)
+            i+=1
+            if i<20:
+                for a in avoid:
+                    if str(a).lower() in v.lower() or v.lower() in str(a).lower():
+                        v = ''
+        return 'has_duration(%s)' % v
 
 
 class avoid_duration(Modifier):  # TODO:

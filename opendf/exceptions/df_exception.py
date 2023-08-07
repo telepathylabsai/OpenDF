@@ -5,7 +5,7 @@ These are the exceptions which the user can do something about.
 
 from abc import ABC
 from typing import Sequence
-
+from opendf.utils.utils import Message
 
 class DFException(Exception, ABC):
     """
@@ -30,6 +30,8 @@ class DFException(Exception, ABC):
         :type chain: DFException
         """
         msg = message
+        if isinstance(msg, Message):
+            x=1
         if isinstance(message, tuple) and len(message)==2 and isinstance(message[0], str):
             msg = message[0]
             if isinstance(message[1], list):

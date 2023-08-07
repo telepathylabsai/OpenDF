@@ -45,7 +45,7 @@ def do_transform_graph(nd, add_yield=False):
 
 
 # for now - translation stops when an error occurs - maybe we should continue anyway (and report just one error)?
-# important - if the trans_simple replaces the node it is called on,
+# important - if the transform_graph replaces the node it is called on,
 #             it must return the new node from which to continue traversing the graph
 def recursive_transform(n, top, e):
     """

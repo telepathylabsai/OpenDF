@@ -11,9 +11,9 @@ from opendf.applications.multiwoz_2_2.domain import MultiWOZDB, MultiWOZContext
 from opendf.exceptions.df_exception import AskMoreInputException, MissingValueException
 from opendf.exceptions import re_raise_exc
 from opendf.applications.multiwoz_2_2.multiwoz_db import MultiWozSqlDB
-from opendf.applications.multiwoz_2_2.utils import edit_distance, select_value
+from opendf.applications.multiwoz_2_2.utils import edit_distance, select_value, SPECIAL_VALUES
 from opendf.defs import posname, POS, is_pos, EnvironmentDefinition, SUGG_IMPL_AGR, \
-    use_database, DB_NODE_TAG, NODE_COLOR_DB, Message, VIEW
+    use_database, DB_NODE_TAG, NODE_COLOR_DB, VIEW
 from opendf.exceptions.df_exception import InvalidInputException, \
     ElementNotFoundException, OracleException, MultipleEntriesSingletonException
 from opendf.graph.node_factory import NodeFactory
@@ -23,7 +23,7 @@ from opendf.graph.nodes.node import Node, get_diff_fields, collect_values
 from collections import defaultdict
 from opendf.graph.nodes.framework_functions import get_refer_match, auto_reorder_inputs
 from opendf.utils.database_utils import get_database_handler
-from opendf.utils.utils import id_sexp, and_values_str, to_list, get_type_and_clevel
+from opendf.utils.utils import id_sexp, and_values_str, to_list, get_type_and_clevel, Message
 from datetime import date, datetime, time
 from opendf.parser.pexp_parser import escape_string
 from opendf.graph.nodes.framework_functions import get_refer_match
@@ -568,7 +568,6 @@ EXTRACT_SIMP = True
 OMIT_GET_INFO = False
 
 
-
 def get_extract_exp_simp(domain, context, general, extracted, extracted_book, extracted_req):
     exps = []
     domain = domain.lower()
@@ -708,6 +707,209 @@ class MwozConversation(Node):
         # 3. current tasks
         for t in tasks:
             t.collect_state()
+
+    def get_tasks(self):
+        tasks = self.inputs['tasks'].get_op_objects(view=VIEW.INT) if 'tasks' in self.inputs else []
+        otasks = to_list(self.context.other_goals)
+        return tasks, otasks
+
+    # add task id tags to all tasks (also in other_goals) if not already there
+    def add_task_ids(self):
+        tasks, otasks = self.get_tasks()
+        tt = tasks + otasks
+        for t in tt:
+            if 'task' not in t.tags:
+                tid = max([int(i.tags['task']) for i in tt if 'task' in i.tags] + [0]) + 1
+                t.tags['task'] = str(tid)
+
+    # the target MwozConv may have multiple tasks - either under it or in other_goals, while the current MwozConv
+    # may have (a subset of the tasks) in a different order, or distributed differently between self and other_goals.
+    # once we make a match between tasks, it should stay fixed!
+    # we use the tags for this.
+    def match_gen_nodes(self, targ, node_map, by_val=False):
+        node_map[self] = targ
+        inp = 'goodbye'
+        if inp in self.inputs and inp in targ.inputs:
+            node_map = self[inp].match_gen_nodes(targ.inputs[inp], node_map)
+        inp = 'tasks'
+        ctasks, _ = self.get_tasks()  # for now - do not modify completed tasks
+        ttasks, totasks = targ.get_tasks()
+        for c in ctasks:
+            for t in ttasks + totasks:
+                if 'task' in c.tags and 'task' in t.tags and c.tags['task'] == t.tags['task']:
+                    if EXTRACT_SIMP:
+                        node_map[c] = t  # stop at the task level - we do only revise_restaurant - don't revise lower
+                    else:
+                        node_map = c.match_gen_nodes(t, node_map)  # todo
+        return node_map
+
+    # a MwozConversation node (in the generated conversation) has been selected for generating an answer.
+    # currently, we hold maximum of one evaluated task in 'tasks'. additional evaluated tasks are in other_goals
+    # (there isn't anything else in other_goals)
+    #
+    # either of the following cases should apply:
+    # 1. goodbye
+    # 2. start a new task. sub cases:
+    #    2.1 no task exists yet,
+    #    2.2 a task exists but finished (evaluated)
+    #        start a new (different) task /  modify the existing / restart a new task of the same type
+    #    2.3 a task exists but didn't finish
+    #        start a new (different) task / restart a task of the same type / modify the existing
+    # 3. modify a task:
+    #    - modify an unfinished or a finished task
+    def gen_user(self, target, context, node_map, persona, tried=None):
+        tried = tried if tried else []
+        ctasks, cotasks = self.get_tasks()
+        ttasks, totasks = target.get_tasks()
+        c_all, t_all = ctasks + cotasks, ttasks + totasks
+        # ctasks_complete = [c for c in ctasks if c.evaluated]
+        ctasks_incomplete = [c for c in ctasks if not c.evaluated]
+        ctasks_incomplete2 = [c for c in ctasks_incomplete if c not in tried]
+        c_ids = [c.tags['task'] for c in c_all if 'task' in c.tags]
+        ntasks = [t for t in t_all if 'task' in t.tags and t.tags['task'] not in c_ids]  # new (uncreated) tasks
+
+        # 1. goodbye: if all tasks are created and evaluated, and not goodbye already
+        if not self.inp_equals('goodbye', True) and \
+                len(c_all) == len(t_all) and all([t.evaluated for t in ctasks]):
+            return 'revise(hasParam=goodbye, new=True, newMode=extend)', 'Goodbye!', None, True
+
+        # 2. start new task
+        # we prefer to continue with an incomplete task (and not create a new task)
+        if ntasks and \
+                (
+                        not ctasks_incomplete2 or random.random() < persona.ask_incomplete):  # no incomplete (
+            # created) tasks, or infrequently
+            t = random.choice(ntasks)
+            pexp, txt, _, _ = t.gen_user(None, context, node_map, persona=persona)
+            return pexp, txt, 'task=%d' % int(t.tags['task']), False
+
+        # 3. modify incomplete task
+        if ctasks_incomplete2:
+            # c = random.choice(ctasks_incomplete)  # randomly select an incomplete task
+            # prefer incomplete tasks which threw an exception
+            nscores = {n: random.random() * persona.base_select_task +
+                          (persona.prefer_continue_exception if n.context.get_exceptions_under_node(n, -1) else 0)
+                       for n in ctasks_incomplete2}
+            c = sorted(nscores, key=nscores.get)[-1]
+            t = node_map[c]
+            pexp, txt, _, _ = c.gen_user(t, context, node_map, persona=persona)
+            return pexp, txt, None, False
+
+        return None, None, None, False
+
+    # set task id tag.
+    # in case extra duplications occurred, copy the task id forward
+    def post_gen(self, post):
+        if isinstance(post, str) and post.startswith('task='):
+            tid = post[5:]
+            ctasks, _ = self.get_tasks()
+            notag = [t for t in ctasks if 'task' not in t.tags]
+            if len(notag) == 1:
+                notag[0].tags['task'] = tid
+                dup = self.context.get_last_goal_of_type('MwozConversation')
+                dtasks, _ = dup.get_tasks()
+                for d in dtasks:
+                    if d.is_trans_dup_of(notag[0]):
+                        d.tags['task'] = tid
+
+
+# compare target and generated graphs
+def compare_runs(curr_ctx, target_ctx):
+    curr = curr_ctx.get_last_goal_of_type('MwozConversation')
+    targ = target_ctx.get_last_goal_of_type('MwozConversation')
+    if curr and targ:
+        ctasks, cotasks = curr.get_tasks()
+        ttasks, totasks = targ.get_tasks()
+        cs, ts = ctasks + cotasks, ttasks + totasks
+        cids = {c: c.tags.get('task', None) for c in cs}
+        tkeys = {t.tags['task']: t for t in ts if 'task' in t.tags}
+        if len(cs) == len(ts):
+            for c in cids:
+                if cids[c] and cids[c] in tkeys:
+                    t = tkeys[cids[c]]
+                    if not c.compare_task(t):
+                        return False
+            return True
+    return False
+
+
+# replace a value by a refer (which returns the same value)
+# synonyms - in case the same type of value is used for different input names
+#            BUT - the value should be of the same type!
+def add_refer(nd, opts, avoid_parents=None, prob=0, synonyms=None):
+    if prob > 0:
+        avoid_parents = avoid_parents if avoid_parents else []
+        synonyms = synonyms if synonyms else {}
+        os = []
+        ctx = nd.context
+        nodes, goals = Node.collect_nodes(ctx.goals), ctx.goals
+        for o in opts:
+            if random.random() > prob:
+                os.append(o)
+            else:
+                pexp, txt = o
+                [role, val] = pexp.split('=')
+                roles = [role]
+                if role in synonyms:
+                    roles += [synonyms[role]]
+                for role in roles:
+                    references = get_refer_match(ctx, nodes, goals, role=role,
+                                                 params={'fallback_type': 'SearchCompleted', 'role': role})
+                    # avoid using values from the same task
+                    # hack - not quite right, but good enough for now
+                    #        currently we actually prevent from using the value for a second time for the same task
+                    if references:
+                        if not avoid_parents or [n for n, d in references[0].outputs if
+                                                 d.typename() not in avoid_parents]:
+                            if references[0].dat == val:
+                                pexp = f"{roles[0]}=refer(role={role})"
+                                txt = 'with the same %s' % role
+                os.append((pexp, txt))
+        return os
+    return opts
+
+
+def add_field_opt(opts, node, name, wgt=0):
+    if name in node.inputs and name in node.gen_show_options():  # node.gen_get_field_str_format(name):
+        dt = node.get_dat(name)
+        if dt is None:
+            inp = node.input_view(name)
+            if name == 'name' and inp.typename() == 'LIKE':
+                i = inp.input_view(posname(1))
+                if i.typename() == 'Name':
+                    dt = i.input_view(posname(1)).dat
+        if dt is not None:
+            opts.append(('%s=%s' % (name, dt), node.gen_get_field_str_format(name) % dt, wgt))
+
+
+# initialize dialog generation
+def init_gen(context, env_def):
+    top_type = 'MwozConversation'
+    top = [g for g in context.goals if g.typename() == top_type]
+    if top:
+        top = top[-1]
+        top.add_task_ids()
+    env_def.agent_oracle = False  # for generation don't use oracle
+    init_pexp = 'MwozConversation()'
+    return init_pexp, top_type, compare_runs
+
+
+def select_n_opts(min_opts, max_opts):
+    # n = random.randint(min_opts, max_opts)
+    wgts = {0: 1.0, 1: 4.0, 2: 3.0, 3: 1.0}
+    vals = list(range(min_opts, max_opts + 1))
+    ws = [wgts[i] for i in vals]
+    s = sum(ws)
+    normw = [i / s for i in ws]
+    n = random.choices(vals, weights=normw)[0]
+    return n
+
+
+def select_weighted_opt_choices(opts, n, noise=0.7):
+    if n == 0:
+        return []
+    scores = {(i, j): random.random() * noise + k for (i, j, k) in opts}
+    return sorted(scores, key=scores.get)[-n:]
 
 
 # this is a dummy task, whose sole use is to perform fallback search on completed tasks
@@ -855,3 +1057,76 @@ class General_greet(GenericPleasantry):
 
     def yield_msg(self, params=None):
         return Message("Hello! How can I help you?")
+
+
+# ##########################################
+
+
+def extract_find_domain(utterance, slots, context, domain, input_map, prefix, book_roles, req_roles,
+                        general=None):
+    extracted = []
+    extracted_book = []
+    problems = set()
+    has_req = any([i for i in slots if 'request' in i])
+    prefix_length = len(prefix)
+    for name, value in slots.items():
+        if 'choice' in name:
+            continue
+        value = select_value(value)
+        if not name.startswith(prefix) or 'request' in name:
+            if 'request' not in name:
+                problems.add(f"Slot {name} not mapped for find_%s!" % domain)
+            continue
+
+        role = name[prefix_length:]
+        if value in SPECIAL_VALUES:
+            if role in book_roles:
+                extracted_book.append(f"{role}={SPECIAL_VALUES[value]}")
+            else:
+                extracted.append(f"{role}={SPECIAL_VALUES[value]}")
+            continue
+
+        if context and value not in utterance:
+            references = get_refer_match(context, Node.collect_nodes(context.goals), context.goals,
+                                         role=role, params={'fallback_type': 'SearchCompleted', 'role': role})
+            if references and references[0].dat == value:
+                if role in book_roles:
+                    extracted_book.append(f"{role}=refer(role={role})")
+                else:
+                    extracted.append(f"{role}=refer(role={role})")
+                continue
+            # else:
+            # TODO: maybe log that the reference could not be found in the graph
+
+        if name in input_map:
+            val = escape_string(value)
+            if 'price' in name and 'pound' in val:
+                val = re.sub('pound', '', re.sub('pounds', '', val))
+            extracted.append(input_map[name] % val)
+        else:
+            problems.add(f"Slot {name} not mapped for find_%s!" % domain)
+
+    extracted_req = []
+    if has_req:
+        for name, value in slots.items():
+            if 'request' in name:
+                value = select_value(value)
+                if not name.startswith(prefix + 'request-'):
+                    problems.add(f"Slot {name} not mapped for find_%s request!" % domain)
+                    continue
+
+                role = name[prefix_length + len('request-'):]
+                if role in req_roles:
+                    # if not any([role+'=' in i for i in extracted]):
+                    extracted_req.append(role)
+                # todo - add other fields and check not a bad field name
+
+    exps = get_extract_exps(domain, context, general, extracted, extracted_book, extracted_req)
+
+    return exps, problems
+
+
+def gen_get_field_str_format(name, input_map, prms=None):
+    if name in input_map and input_map[name]:
+        return input_map[name]
+    return '%s'

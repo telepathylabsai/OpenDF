@@ -35,6 +35,7 @@ SPECIAL_CHARS = {"&"}
 PERSIST_SIDE = False
 
 
+
 def normalize_time(value):
     value = value.lower()
     value = re.sub('[? ]', '', value)

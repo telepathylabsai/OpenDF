@@ -28,7 +28,7 @@ dialogs = [
 
     ],
 
-    # 1  Can you add an appointment with Jerri Skinner at 9 am?
+    # 1  Can you add an appointment with Jerri Skinner at 9 am?  - this is used as part of the automatic tests - do not change!
     [
         '(Yield \
           :output (CreateCommitEventWrapper \
@@ -44,7 +44,7 @@ dialogs = [
                 :start (?= (NextTime :time (NumberAM :number #(Number 9))))))))',
 
     ],
-    # 2
+    # 2  - this is used as part of the automatic tests - do not change!
     [
         '(Yield \
            :output (:start \
@@ -78,7 +78,7 @@ dialogs = [
     [
         '(let (x0 (DateAtTimeWithDefaults :date (NextDOW :dow #(DayOfWeek "SUNDAY")) :time (NumberAM :number #(Number 10.0))) x1 (singleton (:results (FindEventWrapperWithDefaults :constraint (Constraint[Event] :end (?= (TimeAfterDateTime :dateTime x0 :time (HourMinuteAm :hours #(Number 10.0) :minutes #(Number 30.0)))) :location (?= #(LocationKeyphrase "jeffs")) :start (?= x0))))) x2 (DateAtTimeWithDefaults :date (:date (:start x1)) :time (NumberAM :number #(Number 10.0)))) (Yield :output (UpdateCommitEventWrapper :event (UpdatePreflightEventWrapper :id (:id x1) :update (Constraint[Event] :end (?= (TimeAfterDateTime :dateTime x2 :time (NumberPM :number #(Number 2)))) :start (?= x2))))))'
     ],
-    # 4  clear simplification example
+    # 4  clear simplification example  - this is used as part of the automatic tests - do not change!
     [
         '(Yield :output (DeleteCommitEventWrapper :event (DeletePreflightEventWrapper :id (:id (singleton (:results (FindEventWrapperWithDefaults :constraint (EventOnDate :date (Tomorrow) :event (Constraint[Event] :attendees (AttendeeListHasRecipient :recipient (FindManager :recipient (Execute :intension (refer (extensionConstraint (RecipientWithNameLike :constraint (Constraint[Recipient]) :name #(PersonName "John"))))))))))))))))',
     ]

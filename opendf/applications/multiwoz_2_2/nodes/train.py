@@ -1,6 +1,7 @@
 from opendf.applications.multiwoz_2_2.nodes.multiwoz import *
 from opendf.applications.multiwoz_2_2.utils import *
 from opendf.graph.nodes.framework_functions import revise, duplicate_subgraph
+from opendf.utils.utils import Message
 
 if use_database:
     multiwoz_db = MultiWozSqlDB.get_instance()
@@ -10,8 +11,33 @@ node_fact = NodeFactory.get_instance()
 environment_definitions = EnvironmentDefinition.get_instance()
 
 
-class Train(MultiWOZDomain):
+map_train_slots = {
+    "train-departure": "departure=%s" if EXTRACT_SIMP else "departure=LIKE(Location(%s))",
+    "train-destination": "destination=%s" if EXTRACT_SIMP else "destination=LIKE(Location(%s))",
+    "train-duration": "duration=%s" if EXTRACT_SIMP else "duration=LIKE(Duration({escape_string(value)}))",
+    "train-day": "day=%s",
+    "train-arriveby": "arriveby=%s" if EXTRACT_SIMP else "arriveby=ArriveBy(%s)",
+    "train-leaveat": "leaveat=%s" if EXTRACT_SIMP else "leaveat=LeaveAt(%s)",
+    "train-price": "price=%s",
+    "train-bookpeople": "bookpeople=%s",
+    "train-booktime": "booktime=%s",
+}
 
+map_train_inputs = {
+    "departure": 'leaving from %s',
+    "destination": 'going to %s',
+    "duration": 'taking %s',
+    "day": 'on %s',
+    "arriveby": 'arriving at %s',
+    "leaveat": 'leaving at %s',
+    "price": 'costing %s',
+    "bookpeople": 'for %s people',
+    "booktime": 'on %s',
+    'trainid': 'with train id %s',
+}
+
+
+class Train(MultiWOZDomain):
     def __init__(self, typ=None):
         typ = typ if typ else type(self)
         super().__init__(typ)
@@ -19,11 +45,33 @@ class Train(MultiWOZDomain):
         self.signature.add_sig('destination', Location)
         self.signature.add_sig('leaveat', MWOZTime)
         self.signature.add_sig('arriveby', MWOZTime)
-        self.signature.add_sig('day', Str)
+        self.signature.add_sig('day', Book_day)   # changed from Str - easier to reuse value for hotel, restaurant
         # the fields below come from the system
         self.signature.add_sig('duration', Duration)
         self.signature.add_sig('price', Float)
         self.signature.add_sig('trainid', TrainID)
+
+    @staticmethod
+    def gen_get_field_str_format(name, prms=None):
+        return gen_get_field_str_format(name, map_train_inputs)
+
+    @staticmethod
+    def gen_show_options():
+        return ['departure', 'destination', 'leaveat', 'arriveby', 'trainid']
+
+    @staticmethod
+    def gen_get_alternative_values(name, prms=None):
+        if name=='departure':
+            return ['london', 'manchester', 'oxford']
+        if name=='destination':
+            return ['london', 'manchester', 'oxford']
+        if name=='leaveat':
+            return ['10:00', '11:00', '12:00']
+        if name=='arriveby':
+            return ['10:00', '11:00', '12:00']
+        if name=='day':
+            return ['sunday', 'monday', 'tuesday', 'wednesday', 'thursday']
+        return []
 
     def get_context_values(self, inform_values=None, req_fields=None):
         slot_values = {}
@@ -105,23 +153,33 @@ class Train(MultiWOZDomain):
         g.tags[DB_NODE_TAG] = 0
         return g
 
+    # def describe(self, params=None):
+    #     prms = []
+    #     dep, dest, leave, arr, day, dur, price, tid = \
+    #         self.get_dats(['departure', 'destination', 'leaveat', 'arriveby', 'day', 'duration', 'price', 'trainid'])
+    #     prms.append(tid if tid else 'the train')
+    #     if dep:
+    #         prms.append('from %s' % dep)
+    #     if dest:
+    #         prms.append('to %s' % dest)
+    #     if day:
+    #         prms.append('on %s' % day)
+    #     if leave:
+    #         prms.append('leaves at %s' % leave)
+    #     if arr:
+    #         prms.append('arrives at %s' % arr)
+    #     if price:
+    #         prms.append('costs %s' % price)
+    #     return Message(', '.join(prms), objects=[self])
+
     def describe(self, params=None):
         prms = []
-        dep, dest, leave, arr, day, dur, price, tid = \
-            self.get_dats(['departure', 'destination', 'leaveat', 'arriveby', 'day', 'duration', 'price', 'trainid'])
+        tid = self.get_dats(['trainid'])
         prms.append(tid if tid else 'the train')
-        if dep:
-            prms.append('from %s' % dep)
-        if dest:
-            prms.append('to %s' % dest)
-        if day:
-            prms.append('on %s' % day)
-        if leave:
-            prms.append('leaves at %s' % leave)
-        if arr:
-            prms.append('arrives at %s' % arr)
-        if price:
-            prms.append('costs %s' % price)
+        for i in ['departure', 'destination', 'day', 'leaveat', 'arriveby', 'price']:
+            dt = self.get_dat(i)
+            if dt:
+                prms.append(map_train_inputs[i] % dt)
         return Message(', '.join(prms), objects=[self])
 
     def getattr_yield_msg(self, attr, val=None, plural=None, params=None):
@@ -130,6 +188,30 @@ class Train(MultiWOZDomain):
     def collect_state(self):
         do_collect_state(self, 'train')
 
+    def gen_field_opts(self, node_name, prms=None):
+        opts = []
+        add_field_opt(opts, self, 'departure', 0)
+        add_field_opt(opts, self, 'destination', 0)
+        add_field_opt(opts, self, 'day', 0)
+        add_field_opt(opts, self, 'leaveat', 0)
+        add_field_opt(opts, self, 'arriveby', 0)
+        if True or prms and 'full' in prms:
+            add_field_opt(opts, self, 'price', -0.2)
+            add_field_opt(opts, self, 'trainid', -0.2)
+            add_field_opt(opts, self, 'duration', -0.2)
+        return opts
+
+    # replace slot value with a random (but valid) value for the given opt
+    @staticmethod
+    def get_alternative_opt_value(opt):
+        slot, txt = opt
+        if '=' in slot:
+            slot = slot.split('=')[0]
+        vals = Train.gen_get_alternative_values(slot)
+        if vals:
+            val = random.choice(vals)
+            return '%s=%s' % (slot, val), Train.gen_get_field_str_format(slot) % val
+        return opt
 
 ###################################################################
 
@@ -137,9 +219,23 @@ class Train(MultiWOZDomain):
 class TrainBookInfo(Node):
     def __init__(self):
         super().__init__(type(self))
-        #self.signature.add_sig('bookstay', Book_stay)
         self.signature.add_sig('bookpeople', Book_people)
-        #self.signature.add_sig('bookday', Book_day)
+
+    @staticmethod
+    def gen_get_field_str_format(name, prms=None):
+        if name=='bookpeople':
+            return 'for %s people'
+        return ''
+
+    @staticmethod
+    def gen_show_options():
+        return ['bookpeople']
+
+    @staticmethod
+    def gen_get_alternative_values(name, prms=None):
+        if name=='bookpeople':
+            return ['1', '2', '3', '4']
+        return []
 
     def get_context_values(self, inform_values=None, req_fields=None):
         slot_values = {}
@@ -154,6 +250,25 @@ class TrainBookInfo(Node):
 
     def collect_state(self):
         do_collect_state(self, 'train', 'book')
+
+
+    def gen_field_opts(self, node_name, prms=None):
+        opts = []
+        add_field_opt(opts, self, 'bookpeople', 0)
+        return opts
+
+    # replace slot value with a random (but valid) value for the given opt
+    @staticmethod
+    def get_alternative_opt_value(opt):
+        slot, txt = opt
+        if '=' in slot:
+            slot = slot.split('=')[0]
+        vals = TrainBookInfo.gen_get_alternative_values(slot)
+        if vals:
+            val = random.choice(vals)
+            # return '%s=%s' % (slot, val), TrainBookInfo.gen_get_field_str_format(slot) % val
+            return '%s=%s' % (slot, val), gen_get_field_str_format(slot, map_train_inputs) % val
+        return opt
 
 
 class BookTrainConfirmation(Node):
@@ -268,11 +383,112 @@ class BookTrain(Node):
             self.inputs['train'].collect_state()
             self.inputs['book_info'].collect_state()
 
+    def get_opts(self):
+        opts = []
+        for i in ['train', 'book_info']:
+            if i in self.inputs:
+                opts += self.input_view(i).gen_field_opts('BookTrain')
+        return opts
+
+    def add_slot_noise(self, opts, noise=0):
+        if noise>0:
+            opts = [o if random.random() > noise else
+                    TrainBookInfo.get_alternative_opt_value(Train.get_alternative_opt_value(o)) for o in opts]
+        return opts
+
+    def gen_user(self, target, context, node_map, persona, tried=None):
+        # using the convention:
+        #    if calling for the first time (before the current BookTrain even exists), then
+        #    self is actually target, and target is given as None
+        tried = tried if tried else []
+        curr_exists = target is not None
+        targ = target if curr_exists else self
+        ctx = self.context
+        if EXTRACT_SIMP:
+            rest = self.input_view('train')
+            # 1. we may ask a question about the train
+            if curr_exists and (random.random()<persona.ask_incomplete or
+                                (random.random()<persona.ask_complete and rest and rest.typename()=='Train')):
+                if rest and rest.typename()!='Train':
+                    rest = None
+                slot = random.choice(['departure', 'destination', 'day', 'leaveat', 'arriveby', 'price', 'diration', 'trainid'])
+                txt = 'what is the %s of the train?' % slot  # todo - make nicer
+                pexp = 'get_train_info('
+                if rest:
+                    references = get_refer_match(ctx, Node.collect_nodes(ctx.goals), ctx.goals, pos1='Train?()')
+                    rr = 'refer(Train?())' if references and references[0]==rest else id_sexp(rest)
+                    pexp += 'train=%s, ' % rr
+                pexp += slot + ')'
+                return pexp, txt, None, False
+            else:  # 2. otherwise - continue revising
+                objs = []
+                if curr_exists:  # self is in the current graph. try to find exception from prev turn
+                    es = self.context.get_prev_exceptions(ndtyps=['FindTrain', 'BookTrain'])
+                    objs = sum([e.objects for e in es], [])
+                opts = targ.get_opts()
+                copts = self.get_opts() if curr_exists else []
+                opts = [o for o in opts if o not in copts]   # do not repeat existing options
+                if opts:
+                    max_opts = min(3, len(opts))  # todo - if all opts already given...
+                    min_opts = 0 if not curr_exists else 1
+                    n = select_n_opts(min_opts, max_opts)
+                    sel_opts = []
+                    if objs:
+                        pref_opts = [(i,j, w) for k in objs for (i,j, w) in opts if i.startswith(k)]
+                        if pref_opts:
+                            if random.random()<persona.select_suggested:  # frequently - select only one of the suggested slots
+                                sel_opts = select_weighted_opt_choices(pref_opts, 1)  # [random.choice(pref_opts)]
+                    if not sel_opts:
+                        # random.shuffle(opts)
+                        # sel_opts = opts[:n]
+                        sel_opts = select_weighted_opt_choices(opts, n)
+                    sel_opts = self.add_slot_noise(sel_opts, noise=persona.slot_noise)
+                    if curr_exists:  # if we want to add refer even before task created, then we have to pass
+                                     # as input the current context (and give it as input to add_refer)
+                        sel_opts = add_refer(self, sel_opts, ['Train', 'TrainBooking', 'revise_train'],
+                                             persona.add_refer, synonyms={'day': 'bookday'})
+                    pexp = 'revise_train(' + ','.join([i for (i,j) in sel_opts]) + ')'
+                    txt = "I'm looking for a train "
+                    if len(sel_opts)>3:
+                        x=1
+                    if len(sel_opts)>0:
+                        txt += ', '.join([j for (i,j) in sel_opts])
+                    return pexp, txt, None, False
+        return '', '', None, False
+
+    # base function - generate text of user request for input inp given target node
+    def gen_user_text(self, target, inp):
+        # should always be customized!
+        v = target.input_view(inp)
+        if v:
+            return 'I want %s to be %s' % (inp, v.describe().text)
+        return 'grrr...'
+
+    def compare_task(self, other):
+        crest, cbook = self.get_input_views(['train', 'book_info'])
+        orest, obook = other.get_input_views(['train', 'book_info'])
+        if crest.typename() == 'Train' and cbook.typename() == 'TrainBookInfo':
+            if orest.typename() == 'Train' and obook.typename() == 'TrainBookInfo':
+                if crest.compare_graphs(orest) and cbook.compare_graphs(obook):
+                    return True
+        return False
+
 
 class FindTrain(Node):
     def __init__(self):
         super().__init__(Train)
         self.signature.add_sig(posname(1), Train, alias='train')
+
+    # arriveby and leaveat actually mean arrive<=T, depart>=T, so even if we already gave
+    #       a specific time for either, we still get objects with different values for the field!
+    def fix_dfields(self, dfields):
+        trn = self.input_view('train')
+        exc = []
+        if trn and trn.typename()=='Train' and trn.constraint_level==1:
+            for f in ['leaveat', 'arriveby']:
+                if f in trn.inputs:
+                    exc.append(f)
+        return {f:dfields[f] for f in dfields if f not in exc}
 
     def exec(self, all_nodes=None, goals=None):
         context = self.context
@@ -339,7 +555,8 @@ class FindTrain(Node):
         if not environment_definitions.agent_oracle:
             # todo - add logic to recommend first/last train (depending on user request specifying leave or arrive)
             if nresults > 1 and not rec_field:
-                dfields = get_diff_fields(results0, ['departure', 'destination', 'leaveat', 'arriveby', 'day'])
+                dfields = get_diff_fields(results0, ignore_fields=['price'])  # 'departure', 'destination', 'leaveat', 'arriveby', 'day'])
+                dfields = self.fix_dfields(dfields)
                 if len(dfields)>0:
                     for f in list(dfields.keys())[:2]:
                         req_fields[f] = '?'
@@ -359,11 +576,11 @@ class FindTrain(Node):
 
             if not rec_field or req_fields:
                 if len(req_fields)==0 and not environment_definitions.agent_oracle and nresults>2:
-                    dfields = get_diff_fields(results, ['departure', 'destination', 'leaveat', 'arriveby', 'day'])
+                    dfields = get_diff_fields(results, ignore_fields=['departure', 'destination', 'leaveat', 'arriveby', 'day'])
                     if dfields:
                         req_fields = {i:'?' for i in list(dfields.keys())[:2]}
 
-            msg = self.describe_inform_request(nresults0, inform_fields, req_fields, rec_field, org_inform_fields)
+            msg, objs = self.describe_inform_request(nresults0, inform_fields, req_fields, rec_field, org_inform_fields)
 
             #update_mwoz_state(train, context, inform_fields, req_fields)  # use inform_fields to update state
             if nresults!=1 or rec_field:
@@ -377,7 +594,8 @@ class FindTrain(Node):
             raise ElementNotFoundException(
                 "I can not find a matching train in the database. Maybe another area or price range?", self)
         if nresults > 1:
-            diffs = ' or '.join(list(inform_fields.keys())[:2])
+            objs = list(inform_fields.keys())[:2]
+            diffs = ' or '.join(objs)
             if diffs:
                 msg = 'Multiple (%d) matches found. Maybe select  %s?' % (nresults, diffs)
             else:
@@ -468,6 +686,7 @@ class FindTrain(Node):
         tid = inform_fields.get('trainid')
 
         prms = []
+        objs = []
         if tid and len(to_list(tid))<3:
             prms.append('I have found ' + and_values_str(tid))
 
@@ -504,12 +723,13 @@ class FindTrain(Node):
         # if 'book_name' in inform_fields:
         #     prms.append('I Have booked %s' % inform_fields['book_name'][0])
         if len(req_fields) > 0:
+            objs = [i for i in req_fields]
             if nresults0 > 0:
-                prms.append('maybe select %s' % ' or '.join([i for i in req_fields]))
+                prms.append('maybe select %s' % ' or '.join(objs))
             else:
-                prms.append('Sorry, I can\'t find a match. Try a different %s' % ' or '.join([i for i in req_fields]))
+                prms.append('Sorry, I can\'t find a match. Try a different %s' % ' or '.join(objs))
         msg = ', '.join(prms)
-        return msg
+        return msg, objs
 
     # if we revise a train constraint which already has a train name with a non-name constraint, then drop the name.
     #    e.g. user: "I want to book train X", Agent: "train X is ... and has no parking". User: "I want parking"
@@ -533,6 +753,10 @@ class FindTrain(Node):
         elif 'train' in self.inputs:
             self.inputs['train'].collect_state()
 
+    def gen_field_opts(self, node_name, prms=None):
+        i = self.input_view('train')
+        return i.gen_field_opts(node_name, prms) if i else []
+
 
 class revise_train(revise):
     # make it a subtype of revise, so we don't revise this call
@@ -543,7 +767,7 @@ class revise_train(revise):
         self.signature.add_sig('destination', Location)
         self.signature.add_sig('leaveat', MWOZTime)
         self.signature.add_sig('arriveby', MWOZTime)
-        self.signature.add_sig('day', Str)
+        self.signature.add_sig('day', Book_day)
         # the fields below come from the system
         self.signature.add_sig('duration', Duration)
         self.signature.add_sig('price', Float)
@@ -654,98 +878,12 @@ class get_train_info(Node):
 ################################################################################################################
 
 
-# TODO: how do we treat multiple possible values? Check if any is in the input?
-#  Check if we can find any by refer?
 def extract_find_train(utterance, slots, context, general=None):
-    extracted = []
-    extracted_book = []
-    problems = set()
-    slots = fix_inform_request(slots)
-    has_req = any([i for i in slots if 'request' in i])
-    for name, value in slots.items():
-        value = select_value(value)
-
-        if not name.startswith(TRAIN_PREFIX) or 'request' in name:
-            if 'request' not in name:
-                problems.add(f"Slot {name} not mapped for find_train!")
-            continue
-
-        role = name[TRAIN_PREFIX_LENGTH:]
-        if value in SPECIAL_VALUES:
-            if role in {'bookpeople', 'booktime'}:
-                extracted_book.append(f"{role}={SPECIAL_VALUES[value]}")
-            else:
-                extracted.append(f"{role}={SPECIAL_VALUES[value]}")
-            continue
-
-        if context and value not in utterance:
-            references = get_refer_match(context, Node.collect_nodes(context.goals), context.goals,
-                                         role=role, params={'fallback_type':'SearchCompleted', 'role': role})
-            if references and references[0].dat == value:
-                if role in {'bookpeople', 'booktime'}:
-                    extracted_book.append(f"{role}=refer(role={role})")
-                else:
-                    extracted.append(f"{role}=refer(role={role})")
-                continue
-            # else:
-            # TODO: maybe log that the reference could not be found in the graph
-
-        if name == "train-departure":
-            if EXTRACT_SIMP:
-                extracted.append(f"departure={escape_string(value)}")
-            else:
-                extracted.append(f"departure=LIKE(Location({escape_string(value)}))")
-        elif name == "train-destination":
-            if EXTRACT_SIMP:
-                extracted.append(f"destination={escape_string(value)}")
-            else:
-                extracted.append(f"destination=LIKE(Location({escape_string(value)}))")
-        elif name == "train-duration":
-            if EXTRACT_SIMP:
-                extracted.append(f"duration={escape_string(value)}")
-            else:
-                extracted.append(f"duration=LIKE(Duration({escape_string(value)}))")
-        elif name == "train-day":
-            extracted.append(f"day={escape_string(value)}")
-        elif name == "train-arriveby":
-            if EXTRACT_SIMP:
-                extracted.append(f"arriveby={escape_string(value)}")
-            else:
-                extracted.append(f"arriveby=ArriveBy({escape_string(value)})")
-        elif name == "train-leaveat":
-            if EXTRACT_SIMP:
-                extracted.append(f"leaveat={escape_string(value)}")
-            else:
-                extracted.append(f"leaveat=LeaveAt({escape_string(value)})")
-        elif name == "train-price":
-            value = value.replace("pounds", "").replace("pound", "").strip()
-            extracted.append(f"price={value}")
-        elif name == "train-bookpeople":
-            extracted_book.append(f"bookpeople={escape_string(value)}")
-        elif name == "train-booktime":
-            extracted_book.append(f"booktime={escape_string(value)}")
-        else:
-            problems.add(f"Slot {name} not mapped for book_train!")
-
-    extracted_req = []
-    if has_req:
-        for name, value in slots.items():
-            if 'request' in name:
-                if not name.startswith(TRAIN_PREFIX + 'request-'):
-                    problems.add(f"Slot {name} not mapped for find_train request!")
-                    continue
-
-                role = name[TRAIN_PREFIX_LENGTH+len('request-'):]
-                if role in ['departure', 'destination', 'leaveat', 'arriveby', 'day', 'duration', 'price', 'trainid']:
-                    extracted_req.append(role)
-                # todo - add other fields and check not a bad field name
-
-    exps = get_extract_exps('Train', context, general, extracted, extracted_book, extracted_req)
-
-    return exps, problems
-
-
-
+    return extract_find_domain(utterance, slots, context, 'Train', map_train_slots,
+                               TRAIN_PREFIX, ['bookpeople', 'booktime'],
+                               ['departure', 'destination', 'leaveat', 'arriveby',
+                                'day', 'duration', 'price','trainid'],
+                               general)
 
 
 

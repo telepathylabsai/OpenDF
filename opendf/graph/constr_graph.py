@@ -90,6 +90,7 @@ def construct_graph(sexp, d_context, register=True, top_only=False, constr_tag=R
         if sexp and sexp.count('(')!=sexp.count(')'):
             print('\n> > >Unbalanced brackets: #open - #close = %d\n\n'%
                   (sexp.count('(')!=sexp.count(')')) + indent_sexp(sexp, sep_brack=True) + '\n')
+        # print(sexp)
         re_raise_exc(ex)
 
     try:
