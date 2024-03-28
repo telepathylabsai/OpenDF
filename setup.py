@@ -1,5 +1,8 @@
 from setuptools import setup, find_packages
 
+with open("README.md", "r", encoding="utf-8") as fh:
+    long_description = fh.read()
+
 setup(
     name='opendf',
     version='1.0.0',
@@ -17,8 +20,8 @@ setup(
     ],
     author='Your Name',
     author_email='your.email@example.com',
-    description='A description of your package',
-    long_description='A longer description of your package',
+    description="An implementation of the dataflow paradigm for dialogue systems",
+    long_description=long_description,
     long_description_content_type='text/markdown',
     url='https://github.com/your_username/opendf',
     license='MIT',
