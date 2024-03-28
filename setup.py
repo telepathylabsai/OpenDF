@@ -21,7 +21,7 @@ setup(
     long_description='A longer description of your package',
     long_description_content_type='text/markdown',
     url='https://github.com/your_username/opendf',
-    license='',
+    license='MIT',
     classifiers=[
         'Programming Language :: Python :: 3.8',
         'Programming Language :: Python :: 3.9',
